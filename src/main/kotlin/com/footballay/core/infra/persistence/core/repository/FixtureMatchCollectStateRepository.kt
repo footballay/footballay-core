@@ -31,19 +31,30 @@ interface FixtureMatchCollectStateRepository : JpaRepository<FixtureMatchCollect
         pageable: Pageable,
     ): Page<FixtureMatchCollectState>
 
-    @EntityGraph(attributePaths = ["fixture", "fixture.league", "fixture.leagueSeason", "fixture.leagueSeason.league", "fixture.homeTeam", "fixture.awayTeam"])
     @Query(
-        """
-        SELECT s
-        FROM FixtureMatchCollectState s
-        JOIN s.fixture f
-        LEFT JOIN f.league legacyLeague
-        LEFT JOIN f.leagueSeason ls
-        LEFT JOIN ls.league l
-        WHERE (l.uid = :leagueUid OR legacyLeague.uid = :leagueUid)
-          AND s.matchCollectStatus IN :statuses
-        ORDER BY f.kickoff DESC NULLS LAST, f.id DESC
-    """,
+        value =
+            """
+            SELECT s
+            FROM FixtureMatchCollectState s
+            JOIN FETCH s.fixture f
+            JOIN FETCH f.leagueSeason ls
+            JOIN FETCH ls.league l
+            LEFT JOIN FETCH f.homeTeam
+            LEFT JOIN FETCH f.awayTeam
+            WHERE l.uid = :leagueUid
+              AND s.matchCollectStatus IN :statuses
+            ORDER BY f.kickoff DESC NULLS LAST, f.id DESC
+            """,
+        countQuery =
+            """
+            SELECT COUNT(s)
+            FROM FixtureMatchCollectState s
+            JOIN s.fixture f
+            JOIN f.leagueSeason ls
+            JOIN ls.league l
+            WHERE l.uid = :leagueUid
+              AND s.matchCollectStatus IN :statuses
+            """,
     )
     fun findAdminStatesByLeagueUidAndStatuses(
         @Param("leagueUid") leagueUid: String,

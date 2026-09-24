@@ -13,6 +13,7 @@ import com.footballay.core.infra.scheduler.matchjob.MatchJobRegistrationResult
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mock
 import org.mockito.Mockito.lenient
@@ -187,6 +188,28 @@ class AvailableFixtureJobReconcilerTest {
         assertThat(result.leagueUid).isEqualTo(leagueUid)
         assertThat(result.planned).isEqualTo(4)
         assertThat(result.registered).isEqualTo(4)
+    }
+
+    @Test
+    @DisplayName("league reconcile은 조회에 사용한 league uid로 job을 등록한다")
+    fun reconcileLeagueRegistersJobsWithQueriedLeagueUid() {
+        val queriedLeagueUid = "queried-league"
+        val kickoff = now.plusSeconds(60 * 60)
+        whenever(fixtureCoreRepository.findAvailableFixturesByLeagueUid(queriedLeagueUid))
+            .thenReturn(listOf(fixture(kickoff = kickoff, statusCode = FixtureStatusCode.NS)))
+        whenever(jobSchedulerService.registerOrReplaceAvailableJob(any(), any(), any(), any(), any()))
+            .thenReturn(MatchJobRegistrationResult.Registered)
+
+        val result = reconciler.reconcileLeague(queriedLeagueUid)
+
+        assertThat(result.leagueUid).isEqualTo(queriedLeagueUid)
+        verify(jobSchedulerService).registerOrReplaceAvailableJob(
+            MatchJobPhase.PRE,
+            queriedLeagueUid,
+            fixtureUid,
+            kickoff.minus(AvailableFixtureJobReconciler.AVAILABLE_PRE_COLLECTION_LEAD_TIME),
+            true,
+        )
     }
 
     private fun fixture(

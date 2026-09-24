@@ -29,9 +29,10 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     @Query(
         """
         SELECT f
-        FROM FixtureCore f
-        JOIN FETCH f.league
-        WHERE f.league.uid = :leagueUid
+        FROM LeagueSeasonCore ls
+        JOIN ls.league l
+        JOIN FixtureCore f ON f.leagueSeason = ls
+        WHERE l.uid = :leagueUid
           AND f.available = true
     """,
     )
@@ -41,9 +42,15 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
 
     @Query(
         """
-        SELECT DISTINCT f.league.uid
-        FROM FixtureCore f
-        WHERE f.available = true
+        SELECT l.uid
+        FROM LeagueCore l
+        WHERE EXISTS (
+            SELECT f.id
+            FROM LeagueSeasonCore ls
+            JOIN FixtureCore f ON f.leagueSeason = ls
+            WHERE ls.league = l
+              AND f.available = true
+        )
     """,
     )
     fun findDistinctLeagueUidsWithAvailableFixtures(): List<String>
@@ -77,9 +84,9 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     @Query(
         """
         SELECT f
-        FROM FixtureCore f
-        JOIN FETCH f.league l
-        JOIN f.leagueSeason ls
+        FROM LeagueSeasonCore ls
+        JOIN ls.league l
+        JOIN FixtureCore f ON f.leagueSeason = ls
         LEFT JOIN FETCH f.matchCollectState s
         WHERE l.uid = :leagueUid
           AND ls.current = true
@@ -162,13 +169,15 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     @Query(
         """
         SELECT f
-        FROM FixtureCore f
+        FROM LeagueSeasonCore ls
+        JOIN ls.league l
+        JOIN FixtureCore f ON f.leagueSeason = ls
         LEFT JOIN FETCH f.apiSports AS fas
         LEFT JOIN FETCH f.homeTeam AS ht    
         LEFT JOIN FETCH f.awayTeam AS at
         LEFT JOIN FETCH ht.teamApiSports
         LEFT JOIN FETCH at.teamApiSports
-        WHERE f.league.uid = :leagueUid
+        WHERE l.uid = :leagueUid
           AND f.kickoff >= :startInclusive
           AND f.kickoff < :endExclusive
         ORDER BY f.kickoff ASC
@@ -189,13 +198,15 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     @Query(
         """
         SELECT f
-        FROM FixtureCore f
+        FROM LeagueSeasonCore ls
+        JOIN ls.league l
+        JOIN FixtureCore f ON f.leagueSeason = ls
         JOIN FETCH f.apiSports AS fas
         LEFT JOIN FETCH f.homeTeam AS ht
         LEFT JOIN FETCH f.awayTeam AS at
         LEFT JOIN FETCH ht.teamApiSports
         LEFT JOIN FETCH at.teamApiSports
-        WHERE f.league.uid = :leagueUid
+        WHERE l.uid = :leagueUid
           AND f.kickoff >= :startInclusive
           AND f.kickoff < :endExclusive
         ORDER BY f.kickoff ASC
@@ -210,8 +221,10 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     @Query(
         """
         SELECT DISTINCT f.kickoff
-        FROM FixtureCore f
-        WHERE f.league.uid = :leagueUid
+        FROM LeagueSeasonCore ls
+        JOIN ls.league l
+        JOIN FixtureCore f ON f.leagueSeason = ls
+        WHERE l.uid = :leagueUid
           AND f.kickoff >= :startInclusive
           AND f.kickoff < :endExclusive
           AND NOT EXISTS (
@@ -253,9 +266,11 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     @Query(
         """
         SELECT MIN(f.kickoff)
-        FROM FixtureCore f
+        FROM LeagueSeasonCore ls
+        JOIN ls.league l
+        JOIN FixtureCore f ON f.leagueSeason = ls
         JOIN f.apiSports fas
-        WHERE f.league.uid = :leagueUid
+        WHERE l.uid = :leagueUid
           AND f.kickoff >= :from
     """,
     )
@@ -291,9 +306,11 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     @Query(
         """
         SELECT MAX(f.kickoff)
-        FROM FixtureCore f
+        FROM LeagueSeasonCore ls
+        JOIN ls.league l
+        JOIN FixtureCore f ON f.leagueSeason = ls
         JOIN f.apiSports fas
-        WHERE f.league.uid = :leagueUid
+        WHERE l.uid = :leagueUid
           AND f.kickoff < :before
     """,
     )

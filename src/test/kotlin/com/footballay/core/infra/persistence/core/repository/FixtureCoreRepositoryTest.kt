@@ -527,6 +527,23 @@ class FixtureCoreRepositoryTest {
     }
 
     @Test
+    @DisplayName("available fixture 조회는 직접 리그가 같아도 시즌 없는 경기를 제외한다.")
+    fun findAvailableFixturesByLeagueUidExcludesFixturesWithoutSeason() {
+        fixtureCoreRepository.saveAll(
+            listOf(
+                createFixture("season-linked", Instant.parse("2025-08-01T10:00:00Z")),
+                createFixture("season-missing", Instant.parse("2025-08-02T10:00:00Z"), leagueSeason = null),
+            ),
+        )
+        em.flush()
+        em.clear()
+
+        val result = fixtureCoreRepository.findAvailableFixturesByLeagueUid(testLeague.uid)
+
+        assertThat(result.map { it.uid }).containsExactly("season-linked")
+    }
+
+    @Test
     @DisplayName("available fixture 리그 조회는 시즌과 경기 수에 관계없이 리그 uid를 한 번만 반환한다")
     fun findDistinctLeagueUidsWithAvailableFixturesReturnsEachLeagueOnce() {
         val previousSeason =

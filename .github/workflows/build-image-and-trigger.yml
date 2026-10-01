@@ -35,6 +35,7 @@ jobs:
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
       image: ${{ steps.meta.outputs.image }}
+      app_version: ${{ steps.meta.outputs.app_version }}
 
     steps:
       - name: Checkout
@@ -46,9 +47,16 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           TS="$(date -u +%Y%m%d-%H%M%S)"
           IMAGE_TAG="${TS}-${SHORT_SHA}"
+          APP_VERSION="$(sed -n "s/^version = '\([^']*\)'.*/\1/p" build.gradle | head -n1)"
+
+          [ -n "${APP_VERSION}" ] || {
+            echo "app version is empty"
+            exit 1
+          }
 
           echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
           echo "image=${IMAGE_NAME}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "app_version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
 
           {
             echo "IMAGE_TAG=${IMAGE_TAG}"
@@ -98,6 +106,7 @@ jobs:
     outputs:
       image: ${{ needs.build-test.outputs.image }}
       image_tag: ${{ needs.build-test.outputs.image_tag }}
+      app_version: ${{ needs.build-test.outputs.app_version }}
 
     steps:
       - name: Checkout
@@ -142,6 +151,7 @@ jobs:
             echo ""
             echo "- Image: \`${{ needs.build-test.outputs.image }}\`"
             echo "- Tag: \`${{ needs.build-test.outputs.image_tag }}\`"
+            echo "- App version: \`${{ needs.build-test.outputs.app_version }}\`"
             echo "- Commit: \`${{ github.sha }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -157,11 +167,13 @@ jobs:
           TOKEN: ${{ secrets.ACTIONS_RELAY_TOKEN }}
           IMAGE: ${{ needs.docker-build-push.outputs.image }}
           IMAGE_TAG: ${{ needs.docker-build-push.outputs.image_tag }}
+          APP_VERSION: ${{ needs.docker-build-push.outputs.app_version }}
           SKIP_TESTS: ${{ github.event.inputs.skip_tests }}
         run: |
           PAYLOAD="$(jq -n \
             --arg image "$IMAGE" \
             --arg image_tag "$IMAGE_TAG" \
+            --arg app_version "$APP_VERSION" \
             --arg commit_sha "${GITHUB_SHA}" \
             --arg source_repo "${GITHUB_REPOSITORY}" \
             --arg source_run_id "${GITHUB_RUN_ID}" \
@@ -171,6 +183,7 @@ jobs:
               client_payload: {
                 image: $image,
                 image_tag: $image_tag,
+                app_version: $app_version,
                 commit_sha: $commit_sha,
                 source_repo: $source_repo,
                 source_run_id: $source_run_id,

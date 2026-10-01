@@ -260,6 +260,8 @@ class ApiSportsBackboneSyncFacadeImpl(
                 ),
             score =
                 ScoreOfFixtureApiSportsCreateDto(
+                    totalHome = response.goals.home,
+                    totalAway = response.goals.away,
                     halftimeHome = response.score.halftime.home,
                     halftimeAway = response.score.halftime.away,
                     fulltimeHome = response.score.fulltime.home,

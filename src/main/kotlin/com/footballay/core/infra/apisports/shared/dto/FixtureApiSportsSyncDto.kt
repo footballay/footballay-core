@@ -37,6 +37,8 @@ data class StatusOfFixtureApiSportsCreateDto(
 )
 
 data class ScoreOfFixtureApiSportsCreateDto(
+    var totalHome: Int? = null,
+    var totalAway: Int? = null,
     var halftimeHome: Int? = null,
     var halftimeAway: Int? = null,
     var fulltimeHome: Int? = null,

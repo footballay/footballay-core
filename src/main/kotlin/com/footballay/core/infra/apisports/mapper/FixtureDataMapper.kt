@@ -127,6 +127,8 @@ class FixtureDataMapperImpl : FixtureDataMapper {
     override fun mapScoreToApi(apiScore: ScoreOfFixtureApiSportsCreateDto?): ApiSportsScore? =
         apiScore?.let { scoreDto ->
             ApiSportsScore().apply {
+                totalHome = scoreDto.totalHome
+                totalAway = scoreDto.totalAway
                 halftimeHome = scoreDto.halftimeHome
                 halftimeAway = scoreDto.halftimeAway
                 fulltimeHome = scoreDto.fulltimeHome

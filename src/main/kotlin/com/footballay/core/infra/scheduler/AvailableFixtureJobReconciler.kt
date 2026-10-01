@@ -108,7 +108,7 @@ class AvailableFixtureJobReconciler(
         return combineResults(
             fixtureUid = null,
             leagueUid = leagueUid,
-            results = fixtures.map(::reconcileFixture),
+            results = fixtures.map { reconcileFixture(it, leagueUid) },
         )
     }
 
@@ -117,8 +117,12 @@ class AvailableFixtureJobReconciler(
      *
      * Schedule Job을 등록/교체/삭제해 맞춘 뒤 적용 결과를 반환합니다.
      */
-    fun reconcileFixture(fixture: FixtureCore): ReconcileResult {
-        val leagueUid = fixture.league.uid
+    fun reconcileFixture(fixture: FixtureCore): ReconcileResult = reconcileFixture(fixture, fixture.league.uid)
+
+    private fun reconcileFixture(
+        fixture: FixtureCore,
+        leagueUid: String,
+    ): ReconcileResult {
         val desired = desiredJobs(fixture, Instant.now(clock))
         val accumulator =
             ReconcileAccumulator(

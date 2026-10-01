@@ -33,8 +33,8 @@ class FixtureMatchCollectStateReconciler(
     }
 
     private fun reconcileFixture(fixture: FixtureCore): ReconcileResult {
-        val league = fixture.league
-        if (!league.available || league.matchCollect == MatchCollect.NONE || fixture.available) {
+        val league = fixture.leagueSeason?.league
+        if (league == null || !league.available || league.matchCollect == MatchCollect.NONE || fixture.available) {
             return skipped(fixture)
         }
 
@@ -86,7 +86,7 @@ class FixtureMatchCollectStateReconciler(
     ): ReconcileResult =
         ReconcileResult(
             fixtureUid = fixture.uid,
-            leagueUid = fixture.league.uid,
+            leagueUid = fixture.leagueSeason!!.league.uid,
             success = true,
             planned = 1,
             registered = registered,

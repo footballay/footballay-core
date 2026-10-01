@@ -9,8 +9,10 @@ import com.footballay.core.infra.persistence.apisports.repository.FixtureApiSpor
 import com.footballay.core.infra.persistence.apisports.repository.LeagueApiSportsRepository
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
+import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.persistence.core.repository.LeagueCoreRepository
+import com.footballay.core.infra.persistence.core.repository.LeagueSeasonCoreRepository
 import com.footballay.core.infra.persistence.mockbackbone.entity.MockBackboneFixture
 import com.footballay.core.infra.persistence.mockbackbone.entity.MockBackboneLeague
 import com.footballay.core.infra.persistence.mockbackbone.repository.MockBackboneFixtureRepository
@@ -18,6 +20,7 @@ import com.footballay.core.infra.persistence.mockbackbone.repository.MockBackbon
 import jakarta.persistence.EntityManager
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -43,6 +46,9 @@ class MockDataReadQueryServiceTest {
     private lateinit var fixtureCoreRepository: FixtureCoreRepository
 
     @Autowired
+    private lateinit var leagueSeasonCoreRepository: LeagueSeasonCoreRepository
+
+    @Autowired
     private lateinit var leagueApiSportsRepository: LeagueApiSportsRepository
 
     @Autowired
@@ -60,12 +66,14 @@ class MockDataReadQueryServiceTest {
     private lateinit var apiSportsLeague: LeagueCore
     private lateinit var mockLeague: LeagueCore
     private lateinit var sharedLeague: LeagueCore
+    private lateinit var sharedSeason: LeagueSeasonCore
 
     @BeforeEach
     fun setUp() {
         apiSportsLeague = saveLeague("api-league", "ApiSports League")
         mockLeague = saveLeague("mock-league", "Mock League")
         sharedLeague = saveLeague("shared-league", "Shared League")
+        sharedSeason = leagueSeasonCoreRepository.save(LeagueSeasonCore(league = sharedLeague, seasonYear = 2026))
 
         saveApiSportsLeague(apiSportsLeague, 39L)
         saveMockLeague(mockLeague)
@@ -118,6 +126,26 @@ class MockDataReadQueryServiceTest {
     }
 
     @Test
+    @DisplayName("일정 모델의 리그 UID는 레거시 직접 연결이 아닌 조회한 리그 시즌을 따른다.")
+    fun `schedule fixture league uid follows queried league season`() {
+        saveApiFixture("api-mismatched-league", sharedLeague, Instant.parse("2026-06-10T10:00:00Z"))
+        fixtureCoreRepository.findByUid("api-mismatched-league").league = mockLeague
+        entityManager.flush()
+        entityManager.clear()
+
+        val result =
+            fixtureScheduleReadQueryService.findFixturesByLeague(
+                leagueUid = sharedLeague.uid,
+                at = Instant.parse("2026-06-10T00:00:00Z"),
+                mode = "exact",
+                zoneId = ZoneOffset.UTC,
+            )
+
+        assertThat(result).isInstanceOf(DomainResult.Success::class.java)
+        assertThat((result as DomainResult.Success).value.single().leagueUid).isEqualTo(sharedLeague.uid)
+    }
+
+    @Test
     fun `fixture exact mock 포함 조회는 mock fixture를 포함한다`() {
         saveApiFixture("api-exact", sharedLeague, Instant.parse("2026-06-10T10:00:00Z"))
         saveMockFixture("mock-exact", sharedLeague, Instant.parse("2026-06-10T12:00:00Z"))
@@ -142,7 +170,7 @@ class MockDataReadQueryServiceTest {
     fun `fixture dates 기본 조회는 Core fixture를 반환하고 mock fixture는 option일 때만 포함한다`() {
         val coreKickoff = Instant.parse("2026-06-10T10:00:00Z")
         val mockKickoff = Instant.parse("2026-06-10T12:00:00Z")
-        saveFixture("core-date", sharedLeague, coreKickoff)
+        saveFixture("core-date", sharedLeague, coreKickoff).leagueSeason = sharedSeason
         saveMockFixture("mock-date", sharedLeague, mockKickoff)
         entityManager.flush()
         entityManager.clear()
@@ -418,6 +446,7 @@ class MockDataReadQueryServiceTest {
         kickoff: Instant,
     ) {
         val fixture = saveFixture(uid, league, kickoff)
+        fixture.leagueSeason = sharedSeason
         fixtureApiSportsRepository.save(
             FixtureApiSports(
                 apiId = uid.hashCode().toLong().let { if (it < 0) -it else it },

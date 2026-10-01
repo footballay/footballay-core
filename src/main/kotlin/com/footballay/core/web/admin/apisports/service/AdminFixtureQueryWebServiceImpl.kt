@@ -166,7 +166,7 @@ class AdminFixtureQueryWebServiceImpl(
     ): List<Pair<FixtureCore, FixtureApiSports>> {
         // 가장 가까운 kickoff 시각을 찾기
         val nearestKickoff =
-            fixtureCoreRepository.findMinKickoffAfterByLeagueUid(leagueUid, from)
+            fixtureCoreRepository.findMinApiSportsBackedKickoffAfterByLeagueUid(leagueUid, from)
                 ?: return emptyList()
 
         // 해당 날짜의 시작과 끝(exclusive) 계산 (지정된 timezone 기준)

@@ -201,22 +201,32 @@ class LocalizationFacadeTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     fun `AI bulk apply는 뒤쪽 write 예외가 발생하면 앞선 기존 행 변경도 rollback한다`() {
         val team = teamCoreRepository.saveAndFlush(TeamCore(uid = "rollback-team", name = "Team"))
-        teamLocalizationRepository.saveAndFlush(
-            TeamCoreLocalization(teamCore = team, locale = SupportedLocale.KO, name = "원래 이름"),
-        )
+        try {
+            teamLocalizationRepository.saveAndFlush(
+                TeamCoreLocalization(teamCore = team, locale = SupportedLocale.KO, name = "원래 이름"),
+            )
 
-        assertThatThrownBy {
-            localizationFacade.applyAiTeamLocalizations(
-                listOf(
-                    AiLocalizationUpdate(team.uid, SupportedLocale.KO, "변경 이름", null),
-                    AiLocalizationUpdate(team.uid, SupportedLocale.EN, "Team", null),
-                    AiLocalizationUpdate(team.uid, SupportedLocale.EN, "중복", null),
+            assertThatThrownBy {
+                localizationFacade.applyAiTeamLocalizations(
+                    listOf(
+                        AiLocalizationUpdate(team.uid, SupportedLocale.KO, "변경 이름", null),
+                        AiLocalizationUpdate(team.uid, SupportedLocale.EN, "Team", null),
+                        AiLocalizationUpdate(team.uid, SupportedLocale.EN, "중복", null),
+                    ),
+                )
+            }.isInstanceOf(DataIntegrityViolationException::class.java)
+
+            assertThat(teamLocalizationRepository.findByCoreUidAndLocale(team.uid, SupportedLocale.KO)?.name).isEqualTo("원래 이름")
+            assertThat(teamLocalizationRepository.findByCoreUidAndLocale(team.uid, SupportedLocale.EN)).isNull()
+        } finally {
+            teamLocalizationRepository.deleteAll(
+                teamLocalizationRepository.findAllByCoreUidInAndLocaleIn(
+                    listOf(team.uid),
+                    listOf(SupportedLocale.KO, SupportedLocale.EN),
                 ),
             )
-        }.isInstanceOf(DataIntegrityViolationException::class.java)
-
-        assertThat(teamLocalizationRepository.findByCoreUidAndLocale(team.uid, SupportedLocale.KO)?.name).isEqualTo("원래 이름")
-        assertThat(teamLocalizationRepository.findByCoreUidAndLocale(team.uid, SupportedLocale.EN)).isNull()
+            teamCoreRepository.delete(team)
+        }
     }
 
     private fun <T : Any> DomainResult<T, *>.successValue(): T =

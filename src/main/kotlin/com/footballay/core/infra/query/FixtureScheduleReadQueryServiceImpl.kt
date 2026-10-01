@@ -146,7 +146,7 @@ class FixtureScheduleReadQueryServiceImpl(
         val apiSportsFixtures =
             fixtureCoreRepository
                 .findApiSportsBackedFixturesByLeagueUidInKickoffRange(leagueUid, startInclusive, endExclusive)
-                .map(::toApiSportsFixtureModel)
+                .map { toApiSportsFixtureModel(it, leagueUid) }
         val mockFixtures =
             if (option.includeMockData) {
                 mockBackboneFixtureRepository
@@ -159,7 +159,10 @@ class FixtureScheduleReadQueryServiceImpl(
         return (apiSportsFixtures + mockFixtures).distinctBy { it.uid }
     }
 
-    private fun toApiSportsFixtureModel(fixture: FixtureCore): FixtureModel {
+    private fun toApiSportsFixtureModel(
+        fixture: FixtureCore,
+        leagueUid: String,
+    ): FixtureModel {
         val apiSports =
             requireNotNull(fixture.apiSports) {
                 "ApiSports-backed fixture query returned fixture without ApiSports data: ${fixture.uid}"
@@ -169,7 +172,7 @@ class FixtureScheduleReadQueryServiceImpl(
             fixtureApiSports = apiSports,
             teamHomeAndAway = fixture.homeTeam to fixture.awayTeam,
             apiTeamHomeAndAway = fixture.homeTeam?.teamApiSports to fixture.awayTeam?.teamApiSports,
-            leagueUid = fixture.league.uid,
+            leagueUid = leagueUid,
         )
     }
 

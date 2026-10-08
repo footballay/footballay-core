@@ -22,9 +22,82 @@ import java.time.temporal.ChronoUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
+import org.junit.jupiter.api.DisplayName
 
 @ExtendWith(MockitoExtension::class)
 class FixtureCoreSyncServiceTest {
+    @Test
+    @DisplayName("시즌 없는 기존 경기도 요청 시즌으로 연결한다")
+    fun bindExistingFixtureWithoutSeason() {
+        val fixture = fixtureForValidation("missing", null)
+        whenever(fixtureCoreRepository.saveAll(any<List<FixtureCore>>())).thenAnswer { it.arguments[0] }
+        fixtureCoreSyncService.updateFixtureCores(listOf(fixture to updateForValidation(leagueSeasonCore)))
+        assertEquals(leagueSeasonCore, fixture.leagueSeason)
+        assertEquals("missing", fixture.uid)
+    }
+
+    @Test
+    @DisplayName("기존 소속과 무관하게 각 요청의 시즌과 리그를 연결한다")
+    fun allowLeagueMovePreservingIdentity() {
+        val first = fixtureForValidation("first", leagueSeasonCore)
+        val second = fixtureForValidation("second", leagueSeasonCore)
+        val other = LeagueSeasonCore(league = LeagueCore(id = 2L, uid = "other", name = "Other"), seasonYear = 2025)
+        whenever(fixtureCoreRepository.saveAll(any<List<FixtureCore>>())).thenAnswer { it.arguments[0] }
+        fixtureCoreSyncService.updateFixtureCores(
+            listOf(first to updateForValidation(leagueSeasonCore), second to updateForValidation(other)),
+        )
+        assertEquals("Updated", first.statusText)
+        assertEquals(other, second.leagueSeason)
+        assertEquals(other.league, second.league)
+        assertEquals("second", second.uid)
+    }
+
+    @Test
+    @DisplayName("같은 리그의 시즌 변경은 허용한다")
+    fun allowSeasonChangeWithinLeague() {
+        val fixture = fixtureForValidation("same-league", leagueSeasonCore)
+        val next = LeagueSeasonCore(league = leagueCore, seasonYear = 2025)
+        whenever(fixtureCoreRepository.saveAll(any<List<FixtureCore>>())).thenAnswer { it.arguments[0] }
+        fixtureCoreSyncService.updateFixtureCores(listOf(fixture to updateForValidation(next)))
+        assertEquals(next, fixture.leagueSeason)
+        assertEquals(leagueCore, fixture.league)
+    }
+
+    @Test
+    @DisplayName("기존 직접 리그 불일치도 요청 시즌의 리그로 갱신한다")
+    fun repairExistingLeagueMismatch() {
+        val fixture = fixtureForValidation("mismatch", leagueSeasonCore)
+        fixture.league = LeagueCore(id = 2L, uid = "other", name = "Other")
+        whenever(fixtureCoreRepository.saveAll(any<List<FixtureCore>>())).thenAnswer { it.arguments[0] }
+        fixtureCoreSyncService.updateFixtureCores(listOf(fixture to updateForValidation(leagueSeasonCore)))
+        assertEquals(leagueCore, fixture.league)
+    }
+
+    @Test
+    @DisplayName("생성 요청의 리그와 시즌 리그 불일치는 거부한다")
+    fun rejectCreateLeagueMismatch() {
+        val dto = FixtureCoreCreateDto(
+            uid = "invalid", kickoff = null, status = null, statusShort = null, elapsedMin = null,
+            goalsHome = null, goalsAway = null,
+            leagueCore = LeagueCore(id = 2L, uid = "other", name = "Other"),
+            leagueSeason = leagueSeasonCore, homeTeam = null, awayTeam = null,
+        )
+        assertFailsWith<IllegalArgumentException> {
+            fixtureCoreSyncService.createFixtureCores(listOf("invalid" to dto))
+        }
+    }
+
+    private fun fixtureForValidation(uid: String, season: LeagueSeasonCore?) = FixtureCore(
+        uid = uid, kickoff = null, statusText = "Original", statusCode = FixtureStatusCode.NS,
+        league = leagueCore, leagueSeason = season, homeTeam = null, awayTeam = null,
+    )
+
+    private fun updateForValidation(season: LeagueSeasonCore) = FixtureCoreUpdateDto(
+        kickoff = null, status = "Updated", statusShort = FixtureStatusCode.NS, elapsedMin = null,
+        leagueSeason = season, homeTeam = null, awayTeam = null, goalsHome = null, goalsAway = null,
+        finished = false, available = null,
+    )
     @Mock
     private lateinit var fixtureCoreRepository: FixtureCoreRepository
 
@@ -43,6 +116,7 @@ class FixtureCoreSyncServiceTest {
     fun setUp() {
         leagueCore =
             LeagueCore(
+                id = 1L,
                 uid = "league-uid",
                 name = "Test League",
             )
@@ -198,6 +272,7 @@ class FixtureCoreSyncServiceTest {
                 statusCode = FixtureStatusCode.FT,
                 elapsedMin = 90,
                 league = leagueCore,
+                leagueSeason = leagueSeasonCore,
                 homeTeam = homeTeamCore,
                 awayTeam = awayTeamCore,
                 goalsHome = 2,
@@ -215,6 +290,7 @@ class FixtureCoreSyncServiceTest {
                 statusCode = FixtureStatusCode.NS,
                 elapsedMin = null,
                 league = leagueCore,
+                leagueSeason = leagueSeasonCore,
                 homeTeam = homeTeamCore,
                 awayTeam = awayTeamCore,
                 goalsHome = null,

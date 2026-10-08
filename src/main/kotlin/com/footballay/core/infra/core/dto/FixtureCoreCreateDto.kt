@@ -20,7 +20,7 @@ data class FixtureCoreCreateDto(
     val goalsHome: Int?,
     val goalsAway: Int?,
     val leagueCore: LeagueCore,
-    val leagueSeason: LeagueSeasonCore?,
+    val leagueSeason: LeagueSeasonCore,
     val homeTeam: TeamCore?,
     val awayTeam: TeamCore?,
     val finished: Boolean = false,

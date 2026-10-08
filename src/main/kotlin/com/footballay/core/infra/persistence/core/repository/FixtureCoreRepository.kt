@@ -3,6 +3,7 @@ package com.footballay.core.infra.persistence.core.repository
 import com.footballay.core.domain.league.MatchCollect
 import com.footballay.core.domain.matchcollect.MatchCollectStatus
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
+import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -12,6 +13,9 @@ import java.time.Instant
 
 @Repository
 interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
+    // 시즌 전환: Mock 리그 삭제 전에 시즌을 통한 경기 잔존 여부를 확인합니다.
+    fun existsByLeagueSeason_League(league: LeagueCore): Boolean
+
     fun findByUid(fixtureUid: String): FixtureCore
 
     @Query(

@@ -17,6 +17,8 @@ interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
         @Param("coreUid") coreUid: String,
     ): FixtureApiSports?
 
+    // 시즌 전환: ID 보강 조회에서도 기존 Core를 함께 로드하여 UID를 유지합니다.
+    @EntityGraph(attributePaths = ["core"])
     fun findAllByApiIdIn(apiIds: List<Long>): List<FixtureApiSports>
 
     fun findByApiId(apiId: Long): FixtureApiSports?
@@ -45,6 +47,7 @@ interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
 
     /**
      * Fixture 데이터 조회 (League+Season 전용)
+     * 기존 Core를 함께 조회하고 소속은 요청 시 확보한 시즌으로 갱신합니다.
      */
     @Query(
         """

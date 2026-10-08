@@ -15,7 +15,7 @@ data class FixtureCoreUpdateDto(
     val status: String,
     val statusShort: FixtureStatusCode,
     val elapsedMin: Int?,
-    val leagueSeason: LeagueSeasonCore?,
+    val leagueSeason: LeagueSeasonCore,
     val homeTeam: TeamCore?,
     val awayTeam: TeamCore?,
     val goalsHome: Int?,

@@ -26,6 +26,7 @@ import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.entity.TeamCore
+import com.footballay.core.infra.persistence.core.repository.LeagueSeasonCoreRepository
 import com.footballay.core.infra.core.dto.FixtureCoreUpdateDto
 import com.footballay.core.logger
 import org.springframework.stereotype.Service
@@ -40,7 +41,7 @@ import org.springframework.transaction.annotation.Transactional
  * - 모든 DTO는 동일한 시즌이어야 합니다.
  * - apiId가 null 또는 0인 경우 저장 대상에서 제외됩니다 (warn 로그)
  * - home/away team apiId는 null 가능 (미정 팀 허용)
- * - [LeagueApiSports]와 [LeagueApiSportsSeason]이 저장되어 있어야 합니다 (미존재 시 예외)
+ * - [LeagueApiSports]와 연결된 Core 리그가 필요하며, 요청 시즌은 없으면 생성합니다.
  * - [TeamApiSports]가 저장되어 있어야 합니다 (미존재 시 예외)
  * - [FixtureCore] 만 존재하는 경우 [FixtureApiSports] 정보로 이를 추적하는 기능은 구현하지 않았습니다. 자동으로 연결되지 않습니다.
  * - [VenueApiSports] 는 자동으로 생성 또는 업데이트 됩니다
@@ -65,6 +66,7 @@ class FixtureApiSportsWithCoreSyncer(
     private val fixtureApiSportsRepository: FixtureApiSportsRepository,
     private val leagueApiSportsRepository: LeagueApiSportsRepository,
     private val leagueApiSportsSeasonRepository: LeagueApiSportsSeasonRepository,
+    private val leagueSeasonCoreRepository: LeagueSeasonCoreRepository,
     private val teamApiSportsRepository: TeamApiSportsRepository,
     private val venueApiSportsRepository: VenueApiSportsRepository,
     private val fixtureCoreSyncService: FixtureCoreSyncService,
@@ -82,10 +84,7 @@ class FixtureApiSportsWithCoreSyncer(
      * - 만약 dto 에 주어진 정보와 기존 DB 에 저장된 정보가 상충하는 경우, dto 정보를 우선시하여 업데이트합니다.
      * - dto 에 등장하는 팀 정보는 [TeamApiSports] 엔티티로 미리 저장되어 있어야 합니다. (미존재 시 예외)
      * - 경기장 엔티티 [VenueApiSports] 는 `dtos` 에 따라 자동으로 생성/업데이트 됩니다.
-     * - [FixtureApiSports.apiId] 의 제약조건에 따라서 Unique 제약조건 위반이 발생할 수 있습니다.
-     *   추정되는 원인은 해당 [FixtureApiSports] 가 과거에 다른 League 또는 Season 으로 저장되어 있는데,
-     *   전달받은 인자에 따라 얻어진 `leagueApiId + seasonYear` 조합으로는 조회되지 않고 dto 에만 존재하는 경우입니다.
-     *   이 문제가 발생한 경우는 없으나 논리적으로 또는 연관관계 설정 오류로 인해 발생할 가능성이 있습니다.
+     * - 시즌 조회에서 누락된 요청 apiId만 보강 조회하여 기존 Core UID를 유지하고 요청 시즌으로 연결합니다.
      *
      * @param leagueApiId 리그 API ID
      * @param dtos 동기화할 경기 DTO 목록 (동일 시즌이어야 합니다)
@@ -255,7 +254,7 @@ class FixtureApiSportsWithCoreSyncer(
      * 주어진 Fixture dto 들의 `apiId` 와 league 의 `seasonYear` 를 기준으로 [FixtureApiSports] 엔티티를 수집합니다.
      * 주어진 Fixture dto 들의 `homeTeam.apiId` 및 `awayTeam.apiId` 와 기존에 저장된 league season fixture 들에 담긴 Team 들을 기준으로 [TeamApiSports] 엔티티를 수집합니다.
      *
-     * 사전에 [LeagueApiSports] 와 [LeagueApiSportsSeason] 이 저장되어 있지 않은 경우 예외를 던집니다.
+     * 리그는 사전에 저장되어 있어야 하며, 요청 시즌은 리그와 연도로 조회·생성합니다.
      *
      * @throws IllegalStateException 해당 leagueApiId와 seasonYear로 League를 찾을 수 없는 경우
      * @see FixtureDataCollection
@@ -268,29 +267,23 @@ class FixtureApiSportsWithCoreSyncer(
         log.info("Starting collecting data for leagueApiId: {}, seasonYear: {}", leagueApiId, seasonYear)
 
         // League Entity 수집
+        val collectedLeague = leagueApiSportsRepository.findForFixtureSync(leagueApiId, seasonYear)
         val league =
-            leagueApiSportsRepository.findByApiIdAndSeasonWithCoreAndSeasons(leagueApiId, seasonYear)
+            collectedLeague ?: leagueApiSportsRepository.findByApiId(leagueApiId)
                 ?: throw IllegalStateException("League not found with apiId: $leagueApiId and season: $seasonYear")
-        log.info("Found league: {} with {} seasons", league.name, league.seasons.size)
+        log.info("Found league: {}", league.name)
 
-        val providerSeason = findRequiredProviderSeason(leagueApiId, seasonYear)
-        val coreSeason =
-            requireNotNull(providerSeason.leagueSeasonCore) {
-                "LeagueApiSportsSeason must be linked to LeagueSeasonCore before fixture sync. leagueApiId=$leagueApiId, seasonYear=$seasonYear"
-            }
-        val leagueCore =
-            requireNotNull(league.leagueCore) {
-                "LeagueCore must not be null for fixture sync. leagueApiId=$leagueApiId"
-            }
-        require(coreSeason.league.id == leagueCore.id) {
-            "LeagueApiSportsSeason core season is linked to a different LeagueCore. " +
-                "leagueApiId=$leagueApiId, seasonYear=$seasonYear, leagueCoreId=${leagueCore.id}, coreSeasonLeagueId=${coreSeason.league.id}"
+        val existingSeason = collectedLeague?.let {
+            // 같은 트랜잭션에서 이미 초기화된 seasons는 fetch 결과로 교체되지 않을 수 있습니다.
+            it.seasons.firstOrNull { season -> season.seasonYear == seasonYear }
+                ?: leagueApiSportsSeasonRepository.findByLeagueApiIdAndSeasonYearWithCoreSeason(leagueApiId, seasonYear)
         }
+        val fixturesBySeason = existingSeason?.fixtures?.values?.toList().orEmpty()
+        val providerSeason = findOrCreateProviderSeason(league, seasonYear, existingSeason)
+        val coreSeason = requireNotNull(providerSeason.leagueSeasonCore)
 
         // Fixture Entity 수집
         // 기본은 리그+시즌만 조회하고, 리그+시즌 조회에서 누락된 dto apiId가 있으면 그때만 id기반 보강 조회를 수행합니다.
-        val fixturesBySeason = fixtureApiSportsRepository.findFixturesByLeagueAndSeason(leagueApiId, seasonYear)
-
         val extraByIds = collectMissingFixturesNotInSeasonFixtures(dtos, fixturesBySeason)
         if (extraByIds.isNotEmpty()) {
             log.warn(
@@ -336,12 +329,32 @@ class FixtureApiSportsWithCoreSyncer(
         )
     }
 
-    private fun findRequiredProviderSeason(
-        leagueApiId: Long,
+    private fun findOrCreateProviderSeason(
+        league: LeagueApiSports,
         seasonYear: Int,
-    ): LeagueApiSportsSeason =
-        leagueApiSportsSeasonRepository.findByLeagueApiIdAndSeasonYearWithCoreSeason(leagueApiId, seasonYear)
-            ?: throw IllegalStateException("League season not found with apiId: $leagueApiId and season: $seasonYear")
+        providerSeason: LeagueApiSportsSeason?,
+    ): LeagueApiSportsSeason {
+        val coreLeague = requireNotNull(league.leagueCore) { "LeagueCore must not be null for fixture sync. leagueApiId=${league.apiId}" }
+        val coreSeason = providerSeason?.leagueSeasonCore
+            ?.takeIf { it.seasonYear == seasonYear && it.league.id == coreLeague.id }
+            ?: leagueSeasonCoreRepository.findByLeagueAndSeasonYear(coreLeague, seasonYear)
+            ?: leagueSeasonCoreRepository.save(
+                LeagueSeasonCore(
+                    league = coreLeague, seasonYear = seasonYear,
+                    seasonStart = providerSeason?.seasonStart, seasonEnd = providerSeason?.seasonEnd,
+                    current = league.currentSeason == seasonYear,
+                ),
+            )
+        // 경기 요청은 소속만 연결하며 기존 시즌의 날짜·coverage·current 정보는 덮어쓰지 않습니다.
+        return if (providerSeason == null) {
+            leagueApiSportsSeasonRepository.save(
+                LeagueApiSportsSeason(leagueApiSports = league, seasonYear = seasonYear, leagueSeasonCore = coreSeason),
+            )
+        } else {
+            providerSeason.leagueSeasonCore = coreSeason
+            providerSeason
+        }
+    }
 
     /**
      * League+Season 조회에서 누락된 Fixture를 ApiId 기반으로 보강 조회
@@ -884,6 +897,8 @@ class FixtureApiSportsWithCoreSyncer(
         fixtureApiSportsMap.values.forEach { fixture ->
             fixture.season = fixtureData.providerSeason
             fixture.core?.leagueSeason = fixtureData.coreSeason
+            // 직접 league 컬럼은 구 버전 호환용으로 함께 유지합니다.
+            fixture.core?.league = fixtureData.coreSeason.league
         }
 
         // 3) 상세 로깅

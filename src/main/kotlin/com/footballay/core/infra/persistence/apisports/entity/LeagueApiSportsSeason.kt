@@ -34,5 +34,10 @@ data class LeagueApiSportsSeason(
     @JoinColumn(name = "league_season_core_id", referencedColumnName = "id", unique = true)
     var leagueSeasonCore: LeagueSeasonCore? = null,
 ) {
+    /** 경기 저장용 조회에서 이 시즌의 기존 경기를 API ID로 가져옵니다. */
+    @OneToMany(mappedBy = "season", fetch = FetchType.LAZY)
+    @MapKey(name = "apiId")
+    var fixtures: Map<Long, FixtureApiSports> = emptyMap()
+
     override fun toString(): String = "LeagueApiSportsSeason(seasonEnd=$seasonEnd, seasonStart=$seasonStart, seasonYear=$seasonYear, id=$id)"
 }

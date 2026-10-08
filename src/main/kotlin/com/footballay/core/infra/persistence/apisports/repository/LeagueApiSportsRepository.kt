@@ -45,6 +45,25 @@ interface LeagueApiSportsRepository : JpaRepository<LeagueApiSports, Long> {
     @EntityGraph(attributePaths = ["leagueCore"])
     fun findByApiId(apiId: Long): LeagueApiSports?
 
+    /** 경기 저장 전용. seasons에는 요청 연도만 담기며, 해당 시즌이 없으면 null을 반환합니다. */
+    @Query(
+        """
+        SELECT DISTINCT l FROM LeagueApiSports l
+        LEFT JOIN FETCH l.leagueCore
+        JOIN FETCH l.seasons s
+        LEFT JOIN FETCH s.leagueSeasonCore cs
+        LEFT JOIN FETCH cs.league
+        LEFT JOIN FETCH s.fixtures f
+        LEFT JOIN FETCH f.core
+        LEFT JOIN FETCH f.venue
+        WHERE l.apiId = :apiId AND s.seasonYear = :seasonYear
+        """,
+    )
+    fun findForFixtureSync(
+        @Param("apiId") apiId: Long,
+        @Param("seasonYear") seasonYear: Int,
+    ): LeagueApiSports?
+
     /**
      * 특정 시즌만 포함하여서 리그 조회
      */

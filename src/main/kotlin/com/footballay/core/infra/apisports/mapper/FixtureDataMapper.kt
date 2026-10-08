@@ -59,7 +59,7 @@ interface FixtureDataMapper {
         uid: String,
         dto: FixtureApiSportsSyncDto,
         leagueCore: LeagueCore,
-        leagueSeason: LeagueSeasonCore?,
+        leagueSeason: LeagueSeasonCore,
         homeTeam: TeamCore?,
         awayTeam: TeamCore?,
     ): FixtureCoreCreateDto
@@ -67,14 +67,9 @@ interface FixtureDataMapper {
     /**
      * FixtureApiSportsSyncDto를 FixtureCoreUpdateDto로 매핑
      */
-    fun toFixtureCoreUpdateDto(dto: FixtureApiSportsSyncDto): FixtureCoreUpdateDto
-    
-    /**
-     * FixtureApiSportsSyncDto를 FixtureCoreUpdateDto로 매핑
-     */
     fun toFixtureCoreUpdateDto(
         dto: FixtureApiSportsSyncDto,
-        leagueSeason: LeagueSeasonCore?,
+        leagueSeason: LeagueSeasonCore,
         homeTeam: TeamCore?,
         awayTeam: TeamCore?,
     ): FixtureCoreUpdateDto
@@ -162,7 +157,7 @@ class FixtureDataMapperImpl : FixtureDataMapper {
         uid: String,
         dto: FixtureApiSportsSyncDto,
         leagueCore: LeagueCore,
-        leagueSeason: LeagueSeasonCore?,
+        leagueSeason: LeagueSeasonCore,
         homeTeam: TeamCore?,
         awayTeam: TeamCore?,
     ): FixtureCoreCreateDto {
@@ -186,17 +181,9 @@ class FixtureDataMapperImpl : FixtureDataMapper {
         )
     }
 
-    override fun toFixtureCoreUpdateDto(dto: FixtureApiSportsSyncDto): FixtureCoreUpdateDto =
-        toFixtureCoreUpdateDto(
-            dto = dto,
-            leagueSeason = null,
-            homeTeam = null,
-            awayTeam = null,
-        )
-
     override fun toFixtureCoreUpdateDto(
         dto: FixtureApiSportsSyncDto,
-        leagueSeason: LeagueSeasonCore?,
+        leagueSeason: LeagueSeasonCore,
         homeTeam: TeamCore?,
         awayTeam: TeamCore?,
     ): FixtureCoreUpdateDto =

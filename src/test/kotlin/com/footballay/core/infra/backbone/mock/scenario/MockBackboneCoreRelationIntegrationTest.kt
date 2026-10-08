@@ -3,6 +3,7 @@ package com.footballay.core.infra.backbone.mock.scenario
 import com.footballay.core.common.result.DomainResult
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.persistence.core.repository.LeagueCoreRepository
+import com.footballay.core.infra.persistence.core.repository.LeagueSeasonCoreRepository
 import com.footballay.core.infra.persistence.core.repository.LeagueTeamCoreRepository
 import com.footballay.core.infra.persistence.core.repository.TeamCoreRepository
 import com.footballay.core.infra.persistence.mockbackbone.repository.MockBackboneFixtureRepository
@@ -20,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional
 @ActiveProfiles("test")
 @Transactional
 class MockBackboneCoreRelationIntegrationTest {
+    @Autowired
+    private lateinit var leagueSeasonCoreRepository: LeagueSeasonCoreRepository
     @Autowired
     private lateinit var scenarioService: MockSimpleFixtureScenarioService
 
@@ -77,6 +80,11 @@ class MockBackboneCoreRelationIntegrationTest {
         assertThat(mockAwayTeam!!.scenarioUid).isEqualTo(created.scenarioUid)
         assertThat(mockFixture!!.scenarioUid).isEqualTo(created.scenarioUid)
         assertThat(mockFixture.fixture.league.uid).isEqualTo(created.leagueCoreUid)
+        val season = requireNotNull(mockFixture.fixture.leagueSeason)
+        val seasonId = requireNotNull(season.id)
+        assertThat(season.league.uid).isEqualTo(created.leagueCoreUid)
+        assertThat(season.current).isTrue()
+        assertThat(leagueSeasonCoreRepository.findAllByLeague(mockLeague.league)).hasSize(1)
         assertThat(mockFixture.fixture.homeTeam?.uid).isEqualTo(created.homeTeamCoreUid)
         assertThat(mockFixture.fixture.awayTeam?.uid).isEqualTo(created.awayTeamCoreUid)
 
@@ -114,6 +122,7 @@ class MockBackboneCoreRelationIntegrationTest {
         assertThat(mockBackboneLeagueRepository.findByLeagueCoreUid(created.leagueCoreUid)).isNull()
         assertThat(fixtureCoreRepository.findNullableByUid(created.fixtureCoreUid)).isNull()
         assertThat(leagueCoreRepository.findByUid(created.leagueCoreUid)).isNull()
+        assertThat(leagueSeasonCoreRepository.findById(seasonId)).isEmpty()
         assertThat(teamCoreRepository.findById(homeTeamId)).isEmpty()
         assertThat(teamCoreRepository.findById(awayTeamId)).isEmpty()
         assertThat(leagueTeamCoreRepository.findByLeagueId(leagueId)).isEmpty()

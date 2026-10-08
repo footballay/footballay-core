@@ -295,18 +295,21 @@ class FixtureApiSportsWithCoreSyncerIntegrationTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 Season으로 호출 시 IllegalStateException 발생")
-    fun `존재하지 않는 Season으로 호출 시 IllegalStateException 발생`() {
+    @DisplayName("존재하지 않는 시즌은 요청 리그와 연도로 생성하여 경기에 연결한다")
+    fun createMissingRequestSeason() {
         // given
         val leagueApiId = backboneEntities.leagueApiSports.apiId
         val dtoWithNonExistentSeason = createValidFixtureDto().copy(seasonYear = "9999")
 
-        // when & then
-        val exception =
-            assertThrows<IllegalStateException> {
-                syncer.saveFixturesOfLeague(leagueApiId, listOf(dtoWithNonExistentSeason))
-            }
-        assertThat(exception.message).contains("League not found")
+        // when
+        syncer.saveFixturesOfLeague(leagueApiId, listOf(dtoWithNonExistentSeason))
+
+        // then
+        val fixture = fixtureApiSportsRepository.findByApiId(dtoWithNonExistentSeason.apiId!!)!!
+        assertThat(fixture.season!!.seasonYear).isEqualTo(9999)
+        assertThat(fixture.season!!.leagueApiSports!!.apiId).isEqualTo(leagueApiId)
+        assertThat(fixture.core!!.leagueSeason!!.seasonYear).isEqualTo(9999)
+        assertThat(fixture.core!!.leagueSeason!!.id).isEqualTo(fixture.season!!.leagueSeasonCore!!.id)
     }
 
     @Test

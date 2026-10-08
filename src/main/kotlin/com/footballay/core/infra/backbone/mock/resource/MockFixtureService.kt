@@ -8,6 +8,7 @@ import com.footballay.core.infra.facade.AvailableFixtureFacade
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueTeamCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
+import com.footballay.core.infra.persistence.core.repository.LeagueSeasonCoreRepository
 import com.footballay.core.infra.persistence.core.repository.LeagueTeamCoreRepository
 import com.footballay.core.infra.persistence.mockbackbone.entity.MockBackboneFixture
 import com.footballay.core.infra.persistence.mockbackbone.entity.MockBackboneLeague
@@ -23,6 +24,7 @@ import java.time.Instant
 @Service
 class MockFixtureService(
     private val fixtureCoreRepository: FixtureCoreRepository,
+    private val leagueSeasonCoreRepository: LeagueSeasonCoreRepository,
     private val leagueTeamCoreRepository: LeagueTeamCoreRepository,
     private val mockLeagueRepository: MockBackboneLeagueRepository,
     private val mockTeamRepository: MockBackboneTeamRepository,
@@ -40,6 +42,10 @@ class MockFixtureService(
         val mockLeague =
             mockLeagueRepository.findByLeagueCoreUid(command.leagueCoreUid)
                 ?: return DomainResult.Fail(DomainFail.NotFound("MOCK_BACKBONE_LEAGUE", command.leagueCoreUid))
+        val season = leagueSeasonCoreRepository.findByLeagueAndCurrentTrue(mockLeague.league).singleOrNull()
+            ?: return DomainResult.Fail(
+                validationFail("MOCK_LEAGUE_SEASON_INVALID", "Mock 리그에는 기본 current 시즌이 하나 필요합니다.", "leagueCoreUid"),
+            )
         val mockHomeTeam =
             command.homeTeamCoreUid?.let {
                 mockTeamRepository.findByTeamCoreUid(it)
@@ -63,6 +69,7 @@ class MockFixtureService(
                     statusCode = command.statusCode,
                     elapsedMin = null,
                     league = mockLeague.league,
+                    leagueSeason = season,
                     homeTeam = mockHomeTeam?.team,
                     awayTeam = mockAwayTeam?.team,
                     finished = isFinished(command.statusCode),

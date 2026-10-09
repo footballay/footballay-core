@@ -3,8 +3,16 @@ package com.footballay.core.infra.persistence.core.repository
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.footballay.core.domain.league.MatchCollect
 import com.footballay.core.domain.matchcollect.MatchCollectStatus
+import com.footballay.core.domain.matchcollect.AdminMatchCollectQueryModelMapper
+import com.footballay.core.domain.fixture.FixtureStatusCode
+import com.footballay.core.infra.persistence.core.entity.FixtureCore
+import com.footballay.core.infra.persistence.core.entity.FixtureMatchCollectState
+import com.footballay.core.infra.persistence.core.entity.LeagueCore
+import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.querycapture.SqlCaptureStatementInspector
 import com.footballay.core.querycapture.SqlCaptureTestConfiguration
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -12,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.data.domain.PageRequest
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.transaction.annotation.Transactional
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -45,9 +54,64 @@ class FixtureCoreRepositorySqlCaptureTest {
     @Autowired
     private lateinit var objectMapper: ObjectMapper
 
+    @Autowired
+    private lateinit var adminMapper: AdminMatchCollectQueryModelMapper
+
+    @PersistenceContext
+    private lateinit var em: EntityManager
+
     private val kickoffFrom = Instant.parse("2026-01-01T00:00:00Z")
     private val kickoffTo = Instant.parse("2026-02-01T00:00:00Z")
     private val coreGitCommit by lazy { readCoreGitCommit() }
+
+    @Test
+    @Transactional
+    fun fixtureLeagueReadsDoNotSelectPerFixtureOrSeason() {
+        val league = LeagueCore(uid = "n-plus-one-league", name = "N+1 League", available = true)
+        em.persist(league)
+        val seasons = listOf(2025, 2026).map { year ->
+            LeagueSeasonCore(league = league, seasonYear = year, current = true).also(em::persist)
+        }
+        repeat(4) { index ->
+            val fixture = FixtureCore(
+                uid = "n-plus-one-fixture-$index",
+                kickoff = kickoffFrom.plusSeconds(index.toLong()),
+                statusText = "Not Started",
+                statusCode = FixtureStatusCode.NS,
+                league = league,
+                leagueSeason = seasons[index % seasons.size],
+                homeTeam = null,
+                awayTeam = null,
+            )
+            em.persist(fixture)
+            em.persist(FixtureMatchCollectState(fixture = fixture, matchCollectStatus = MatchCollectStatus.PENDING))
+        }
+        em.flush()
+        em.clear()
+
+        inspector.clear()
+        val fixtures = repository.findMatchCollectStateReconcileFixturesByLeagueUid(league.uid)
+        val fixtureSelects = inspector.captured().size
+        assertThat(fixtures).hasSize(4)
+        assertThat(fixtures.map { it.leagueSeason?.league?.uid }).containsOnly(league.uid)
+        assertThat(inspector.captured()).hasSize(fixtureSelects)
+
+        em.clear()
+        inspector.clear()
+        val liveFixtures = repository.findMatchCollectLiveJobReconcileFixturesByLeagueUid(league.uid)
+        val liveSelects = inspector.captured().size
+        assertThat(liveFixtures).hasSize(4)
+        assertThat(liveFixtures.map { it.leagueSeason?.league?.uid }).containsOnly(league.uid)
+        assertThat(inspector.captured()).hasSize(liveSelects)
+
+        em.clear()
+        inspector.clear()
+        val states = stateRepository.findAdminStatesByStatuses(listOf(MatchCollectStatus.PENDING), PageRequest.of(0, 2))
+        val stateSelects = inspector.captured().size
+        assertThat(states.totalElements).isEqualTo(4)
+        assertThat(states.content.map(adminMapper::toStateModel).map { it.leagueUid }).containsOnly(league.uid)
+        assertThat(inspector.captured()).hasSize(stateSelects)
+    }
 
     @Test
     fun captureFindFixturesInKickoffRange() {

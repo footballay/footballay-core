@@ -446,7 +446,6 @@ class MockDataReadQueryServiceTest {
         kickoff: Instant,
     ) {
         val fixture = saveFixture(uid, league, kickoff)
-        fixture.leagueSeason = sharedSeason
         fixtureApiSportsRepository.save(
             FixtureApiSports(
                 apiId = uid.hashCode().toLong().let { if (it < 0) -it else it },
@@ -486,6 +485,7 @@ class MockDataReadQueryServiceTest {
                 statusText = "Not Started",
                 statusCode = FixtureStatusCode.NS,
                 league = league,
+                leagueSeason = sharedSeason,
                 homeTeam = null,
                 awayTeam = null,
                 finished = false,

@@ -7,6 +7,7 @@ import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import com.footballay.core.infra.persistence.apisports.repository.FixtureApiSportsRepository
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
+import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.scheduler.AvailableFixtureJobReconciler
 import com.footballay.core.infra.scheduler.MatchCollectLiveFixtureReconciler
@@ -333,25 +334,22 @@ class AvailableFixtureFacadeJobReconcileTest {
     private fun fixture(
         available: Boolean,
         kickoff: Instant?,
-    ): FixtureCore =
-        FixtureCore(
+    ): FixtureCore {
+        val league = LeagueCore(id = 1L, uid = "league-1", name = "League", available = true)
+        return FixtureCore(
             id = 1L,
             uid = fixtureUid,
             kickoff = kickoff,
             statusText = "Not Started",
             statusCode = FixtureStatusCode.NS,
             elapsedMin = null,
-            league =
-                LeagueCore(
-                    id = 1L,
-                    uid = "league-1",
-                    name = "League",
-                    available = true,
-                ),
+            league = league,
+            leagueSeason = LeagueSeasonCore(id = 1L, league = league, seasonYear = 2026),
             homeTeam = null,
             awayTeam = null,
             available = available,
         )
+    }
 
     private fun fixtureApi(
         fixture: FixtureCore,

@@ -494,6 +494,7 @@ class DesktopFixtureFacadeImplTest {
                 statusText = "Not Started",
                 statusCode = FixtureStatusCode.NS,
                 league = testLeague,
+                leagueSeason = testSeason,
                 homeTeam = homeTeam,
                 awayTeam = awayTeam,
                 goalsHome = 0,

@@ -31,7 +31,10 @@ class MatchCollectLiveFixtureReconciler(
 
     @Transactional
     fun reconcileFixture(fixture: FixtureCore): ReconcileResult {
-        val league = fixture.leagueSeason?.league ?: fixture.league
+        val league = fixture.leagueSeason?.league ?: run {
+            log.error("FixtureCore has no league season - fixtureUid={}", fixture.uid)
+            error("FixtureCore has no league season: ${fixture.uid}")
+        }
         val leagueUid = league.uid
         val desired = desiredJobs(fixture, Instant.now(clock))
         val accumulator =
@@ -57,7 +60,7 @@ class MatchCollectLiveFixtureReconciler(
         fixture: FixtureCore,
         now: Instant,
     ): Map<MatchJobPhase, DesiredMatchCollectJob> {
-        val leagueSeason = fixture.leagueSeason ?: return emptyMap()
+        val leagueSeason = requireNotNull(fixture.leagueSeason)
         val league = leagueSeason.league
         val kickoff = fixture.kickoff
         if (!league.available || league.matchCollect != MatchCollect.LIVE || !leagueSeason.current || fixture.available || kickoff == null) {

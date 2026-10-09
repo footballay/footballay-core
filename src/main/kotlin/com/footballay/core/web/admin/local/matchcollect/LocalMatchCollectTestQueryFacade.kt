@@ -7,6 +7,7 @@ import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import com.footballay.core.infra.persistence.core.repository.LeagueCoreRepository
+import com.footballay.core.logger
 import org.springframework.context.annotation.Profile
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Component
@@ -24,6 +25,8 @@ class LocalMatchCollectTestQueryFacade(
     private val fixtureCoreRepository: FixtureCoreRepository,
     private val stateRepository: FixtureMatchCollectStateRepository,
 ) {
+    private val log = logger()
+
     @Transactional(readOnly = true)
     fun diagnostics(
         leagueUid: String?,
@@ -63,10 +66,7 @@ class LocalMatchCollectTestQueryFacade(
     ): LeagueCore? =
         when {
             !leagueUid.isNullOrBlank() -> leagueCoreRepository.findByUid(leagueUid)
-            fixture != null -> {
-                @Suppress("DEPRECATION")
-                fixture.leagueSeason?.league ?: fixture.league
-            }
+            fixture != null -> requireSeason(fixture).league
             else -> null
         }
 
@@ -79,19 +79,22 @@ class LocalMatchCollectTestQueryFacade(
         )
 
     private fun toFixtureSnapshot(fixture: FixtureCore): LocalMatchCollectFixtureSnapshot {
-        val season = fixture.leagueSeason
-        @Suppress("DEPRECATION")
-        val league = season?.league ?: fixture.league
+        val season = requireSeason(fixture)
         return LocalMatchCollectFixtureSnapshot(
             fixtureUid = fixture.uid,
-            leagueCoreUid = league?.uid,
-            seasonYear = season?.seasonYear,
-            currentSeason = season?.current,
+            leagueCoreUid = season.league.uid,
+            seasonYear = season.seasonYear,
+            currentSeason = season.current,
             kickoff = fixture.kickoff,
             statusCode = fixture.statusCode,
             available = fixture.available,
             apiSportsFixtureId = fixture.apiSports?.apiId,
         )
+    }
+
+    private fun requireSeason(fixture: FixtureCore) = fixture.leagueSeason ?: run {
+        log.error("FixtureCore has no league season - fixtureUid={}", fixture.uid)
+        error("FixtureCore has no league season: ${fixture.uid}")
     }
 
     private fun toStateSnapshot(state: FixtureMatchCollectState): LocalMatchCollectStateSnapshot =

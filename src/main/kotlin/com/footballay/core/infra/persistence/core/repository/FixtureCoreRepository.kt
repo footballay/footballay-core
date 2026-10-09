@@ -22,7 +22,8 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         """
         SELECT f
         FROM FixtureCore f
-        JOIN FETCH f.league
+        LEFT JOIN FETCH f.leagueSeason ls
+        LEFT JOIN FETCH ls.league
         WHERE f.uid = :fixtureUid
     """,
     )
@@ -63,8 +64,8 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         """
         SELECT f
         FROM FixtureCore f
-        JOIN FETCH f.league l
-        JOIN f.leagueSeason ls
+        JOIN FETCH f.leagueSeason ls
+        JOIN FETCH ls.league l
         LEFT JOIN FETCH f.matchCollectState s
         WHERE l.available = true
           AND l.matchCollect = :matchCollect
@@ -88,9 +89,9 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     @Query(
         """
         SELECT f
-        FROM LeagueSeasonCore ls
-        JOIN ls.league l
-        JOIN FixtureCore f ON f.leagueSeason = ls
+        FROM FixtureCore f
+        JOIN FETCH f.leagueSeason ls
+        JOIN FETCH ls.league l
         LEFT JOIN FETCH f.matchCollectState s
         WHERE l.uid = :leagueUid
           AND ls.current = true
@@ -104,9 +105,9 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     @Query(
         """
         SELECT f
-        FROM LeagueSeasonCore ls
-        JOIN ls.league l
-        JOIN FixtureCore f ON f.leagueSeason = ls
+        FROM FixtureCore f
+        JOIN FETCH f.leagueSeason ls
+        JOIN FETCH ls.league l
         LEFT JOIN FETCH f.matchCollectState s
         WHERE l.uid = :leagueUid
           AND ls.current = true
@@ -130,7 +131,8 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         """
         SELECT f
         FROM FixtureCore f
-        WHERE f.league.id = :leagueId
+        JOIN f.leagueSeason ls
+        WHERE ls.league.id = :leagueId
           AND f.kickoff >= :startInclusive
           AND f.kickoff < :endExclusive
         ORDER BY f.kickoff ASC
@@ -153,7 +155,8 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         """
         SELECT MIN(f.kickoff)
         FROM FixtureCore f
-        WHERE f.league.id = :leagueId
+        JOIN f.leagueSeason ls
+        WHERE ls.league.id = :leagueId
           AND f.kickoff >= :from
     """,
     )
@@ -255,7 +258,9 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         """
         SELECT MIN(f.kickoff)
         FROM FixtureCore f
-        WHERE f.league.uid = :leagueUid
+        JOIN f.leagueSeason ls
+        JOIN ls.league l
+        WHERE l.uid = :leagueUid
           AND f.kickoff >= :from
     """,
     )
@@ -295,7 +300,9 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         """
         SELECT MAX(f.kickoff)
         FROM FixtureCore f
-        WHERE f.league.uid = :leagueUid
+        JOIN f.leagueSeason ls
+        JOIN ls.league l
+        WHERE l.uid = :leagueUid
           AND f.kickoff < :before
     """,
     )

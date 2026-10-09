@@ -7,10 +7,13 @@ import com.footballay.core.domain.model.TeamModel
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.TeamCore
+import com.footballay.core.logger
 import org.springframework.stereotype.Component
 
 @Component
 class MockBackboneModelMapper {
+    private val log = logger()
+
     fun toLeagueModel(league: LeagueCore): LeagueModel =
         LeagueModel(
             uid = league.uid,
@@ -26,10 +29,14 @@ class MockBackboneModelMapper {
             code = team.code,
         )
 
-    fun toFixtureModel(fixture: FixtureCore): FixtureModel =
-        FixtureModel(
+    fun toFixtureModel(fixture: FixtureCore): FixtureModel {
+        val season = fixture.leagueSeason ?: run {
+            log.error("FixtureCore has no league season - fixtureUid={}", fixture.uid)
+            error("FixtureCore has no league season: ${fixture.uid}")
+        }
+        return FixtureModel(
             uid = fixture.uid,
-            leagueUid = fixture.league.uid,
+            leagueUid = season.league.uid,
             schedule =
                 FixtureModel.FixtureSchedule(
                     kickoffAt = fixture.kickoff,
@@ -51,6 +58,7 @@ class MockBackboneModelMapper {
                 ),
             available = fixture.available,
         )
+    }
 
     private fun toTeamSide(team: TeamCore): FixtureModel.TeamSide =
         FixtureModel.TeamSide(

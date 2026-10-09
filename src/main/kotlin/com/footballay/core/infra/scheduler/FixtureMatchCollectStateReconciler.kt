@@ -8,6 +8,7 @@ import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.FixtureMatchCollectState
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
+import com.footballay.core.logger
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -17,6 +18,8 @@ class FixtureMatchCollectStateReconciler(
     private val stateRepository: FixtureMatchCollectStateRepository,
     private val fixtureStatusClassifier: FixtureStatusClassifier,
 ) {
+    private val log = logger()
+
     @Transactional
     fun reconcileLeague(leagueUid: String): ReconcileResult {
         val fixtures = fixtureCoreRepository.findMatchCollectStateReconcileFixturesByLeagueUid(leagueUid)
@@ -33,8 +36,11 @@ class FixtureMatchCollectStateReconciler(
     }
 
     private fun reconcileFixture(fixture: FixtureCore): ReconcileResult {
-        val league = fixture.leagueSeason?.league
-        if (league == null || !league.available || league.matchCollect == MatchCollect.NONE || fixture.available) {
+        val league = fixture.leagueSeason?.league ?: run {
+            log.error("FixtureCore has no league season - fixtureUid={}", fixture.uid)
+            error("FixtureCore has no league season: ${fixture.uid}")
+        }
+        if (!league.available || league.matchCollect == MatchCollect.NONE || fixture.available) {
             return skipped(fixture)
         }
 
@@ -86,7 +92,7 @@ class FixtureMatchCollectStateReconciler(
     ): ReconcileResult =
         ReconcileResult(
             fixtureUid = fixture.uid,
-            leagueUid = fixture.leagueSeason!!.league.uid,
+            leagueUid = requireNotNull(fixture.leagueSeason).league.uid,
             success = true,
             planned = 1,
             registered = registered,

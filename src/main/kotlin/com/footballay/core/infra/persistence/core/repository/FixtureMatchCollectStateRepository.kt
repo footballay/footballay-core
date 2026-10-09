@@ -16,7 +16,7 @@ interface FixtureMatchCollectStateRepository : JpaRepository<FixtureMatchCollect
 
     fun existsByFixture_Uid(fixtureUid: String): Boolean
 
-    @EntityGraph(attributePaths = ["fixture", "fixture.league", "fixture.leagueSeason", "fixture.leagueSeason.league", "fixture.homeTeam", "fixture.awayTeam"])
+    @EntityGraph(attributePaths = ["fixture", "fixture.leagueSeason", "fixture.leagueSeason.league", "fixture.homeTeam", "fixture.awayTeam"])
     @Query(
         """
         SELECT s
@@ -62,6 +62,6 @@ interface FixtureMatchCollectStateRepository : JpaRepository<FixtureMatchCollect
         pageable: Pageable,
     ): Page<FixtureMatchCollectState>
 
-    @EntityGraph(attributePaths = ["fixture", "fixture.league", "fixture.leagueSeason", "fixture.leagueSeason.league", "fixture.homeTeam", "fixture.awayTeam"])
+    @EntityGraph(attributePaths = ["fixture", "fixture.leagueSeason", "fixture.leagueSeason.league", "fixture.homeTeam", "fixture.awayTeam"])
     fun findAdminStateByFixture_Uid(fixtureUid: String): FixtureMatchCollectState?
 }

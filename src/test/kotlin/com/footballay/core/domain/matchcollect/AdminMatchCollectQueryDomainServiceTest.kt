@@ -8,6 +8,7 @@ import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mock
@@ -106,6 +107,16 @@ class AdminMatchCollectQueryDomainServiceTest {
             statuses = org.mockito.kotlin.any(),
             pageable = org.mockito.kotlin.any(),
         )
+    }
+
+    @Test
+    fun `season missing fixture state mapping fails instead of using direct league`() {
+        val fixture = fixture().apply { leagueSeason = null }
+        val state = FixtureMatchCollectState(fixture = fixture, matchCollectStatus = MatchCollectStatus.PENDING)
+
+        assertThatThrownBy { AdminMatchCollectQueryModelMapper().toStateModel(state) }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining(fixture.uid)
     }
 
     private fun service() =

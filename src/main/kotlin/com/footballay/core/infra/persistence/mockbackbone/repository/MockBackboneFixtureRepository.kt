@@ -17,7 +17,8 @@ interface MockBackboneFixtureRepository : JpaRepository<MockBackboneFixture, Lon
         SELECT mf
         FROM MockBackboneFixture mf
         JOIN FETCH mf.fixture f
-        JOIN FETCH f.league
+        LEFT JOIN FETCH f.leagueSeason ls
+        LEFT JOIN FETCH ls.league
         LEFT JOIN FETCH f.homeTeam
         LEFT JOIN FETCH f.awayTeam
         WHERE f.uid = :fixtureCoreUid
@@ -32,12 +33,13 @@ interface MockBackboneFixtureRepository : JpaRepository<MockBackboneFixture, Lon
         SELECT f
         FROM MockBackboneFixture mf
         JOIN mf.fixture f
-        JOIN FETCH f.league
+        JOIN FETCH f.leagueSeason ls
+        JOIN FETCH ls.league l
         LEFT JOIN FETCH f.homeTeam AS ht
         LEFT JOIN FETCH f.awayTeam AS at
         LEFT JOIN FETCH ht.teamApiSports
         LEFT JOIN FETCH at.teamApiSports
-        WHERE f.league.uid = :leagueUid
+        WHERE l.uid = :leagueUid
           AND f.kickoff >= :startInclusive
           AND f.kickoff < :endExclusive
         ORDER BY f.kickoff ASC
@@ -54,7 +56,9 @@ interface MockBackboneFixtureRepository : JpaRepository<MockBackboneFixture, Lon
         SELECT DISTINCT f.kickoff
         FROM MockBackboneFixture mf
         JOIN mf.fixture f
-        WHERE f.league.uid = :leagueUid
+        JOIN f.leagueSeason ls
+        JOIN ls.league l
+        WHERE l.uid = :leagueUid
           AND f.kickoff >= :startInclusive
           AND f.kickoff < :endExclusive
         """,
@@ -70,7 +74,9 @@ interface MockBackboneFixtureRepository : JpaRepository<MockBackboneFixture, Lon
         SELECT MIN(f.kickoff)
         FROM MockBackboneFixture mf
         JOIN mf.fixture f
-        WHERE f.league.uid = :leagueUid
+        JOIN f.leagueSeason ls
+        JOIN ls.league l
+        WHERE l.uid = :leagueUid
           AND f.kickoff >= :from
     """,
     )
@@ -84,7 +90,9 @@ interface MockBackboneFixtureRepository : JpaRepository<MockBackboneFixture, Lon
         SELECT MAX(f.kickoff)
         FROM MockBackboneFixture mf
         JOIN mf.fixture f
-        WHERE f.league.uid = :leagueUid
+        JOIN f.leagueSeason ls
+        JOIN ls.league l
+        WHERE l.uid = :leagueUid
           AND f.kickoff < :before
     """,
     )

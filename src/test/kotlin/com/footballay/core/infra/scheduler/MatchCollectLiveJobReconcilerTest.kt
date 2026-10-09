@@ -16,6 +16,7 @@ import com.footballay.core.infra.scheduler.matchjob.MatchJobOwner
 import com.footballay.core.infra.scheduler.matchjob.MatchJobPhase
 import com.footballay.core.infra.scheduler.matchjob.MatchJobRegistrationResult
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
@@ -92,6 +93,16 @@ class MatchCollectLiveJobReconcilerTest {
             kickoff,
             true,
         )
+    }
+
+    @Test
+    fun `season missing fixture fails before scheduling matchcollect jobs`() {
+        val fixture = fixture(kickoff = now, statusCode = FixtureStatusCode.NS).apply { leagueSeason = null }
+
+        assertThatThrownBy { fixtureReconciler.reconcileFixture(fixture) }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining(fixture.uid)
+        org.mockito.kotlin.verifyNoInteractions(jobSchedulerService)
     }
 
     @Test

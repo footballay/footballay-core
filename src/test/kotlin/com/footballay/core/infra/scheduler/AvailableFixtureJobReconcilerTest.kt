@@ -4,6 +4,7 @@ import com.footballay.core.domain.fixture.FixtureStatusCode
 import com.footballay.core.infra.match.FixtureStatusClassifier
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
+import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.scheduler.matchjob.MatchJobIdentity
 import com.footballay.core.infra.scheduler.matchjob.MatchJobKeyFactory
@@ -11,6 +12,7 @@ import com.footballay.core.infra.scheduler.matchjob.MatchJobOwner
 import com.footballay.core.infra.scheduler.matchjob.MatchJobPhase
 import com.footballay.core.infra.scheduler.matchjob.MatchJobRegistrationResult
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.DisplayName
@@ -79,6 +81,16 @@ class AvailableFixtureJobReconcilerTest {
             kickoff,
             true,
         )
+    }
+
+    @Test
+    fun `season missing fixture fails before scheduling available jobs`() {
+        val fixture = fixture(kickoff = now, statusCode = FixtureStatusCode.NS).apply { leagueSeason = null }
+
+        assertThatThrownBy { reconciler.reconcileFixture(fixture) }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining(fixture.uid)
+        org.mockito.kotlin.verifyNoInteractions(jobSchedulerService)
     }
 
     @Test
@@ -217,25 +229,22 @@ class AvailableFixtureJobReconcilerTest {
         kickoff: Instant?,
         statusCode: FixtureStatusCode,
         available: Boolean = true,
-    ): FixtureCore =
-        FixtureCore(
+    ): FixtureCore {
+        val league = LeagueCore(id = 1L, uid = leagueUid, name = "League", available = true)
+        return FixtureCore(
             id = 1L,
             uid = uid,
             kickoff = kickoff,
             statusText = statusCode.code,
             statusCode = statusCode,
             elapsedMin = null,
-            league =
-                LeagueCore(
-                    id = 1L,
-                    uid = leagueUid,
-                    name = "League",
-                    available = true,
-                ),
+            league = league,
+            leagueSeason = LeagueSeasonCore(id = 1L, league = league, seasonYear = 2026),
             homeTeam = null,
             awayTeam = null,
             available = available,
         )
+    }
 
     private fun availableJobKey(phase: MatchJobPhase): JobKey {
         val identity =

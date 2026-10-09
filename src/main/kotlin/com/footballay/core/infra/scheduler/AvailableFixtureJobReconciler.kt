@@ -117,7 +117,13 @@ class AvailableFixtureJobReconciler(
      *
      * Schedule Job을 등록/교체/삭제해 맞춘 뒤 적용 결과를 반환합니다.
      */
-    fun reconcileFixture(fixture: FixtureCore): ReconcileResult = reconcileFixture(fixture, fixture.league.uid)
+    fun reconcileFixture(fixture: FixtureCore): ReconcileResult {
+        val leagueUid = fixture.leagueSeason?.league?.uid ?: run {
+            log.error("FixtureCore has no league season - fixtureUid={}", fixture.uid)
+            error("FixtureCore has no league season: ${fixture.uid}")
+        }
+        return reconcileFixture(fixture, leagueUid)
+    }
 
     private fun reconcileFixture(
         fixture: FixtureCore,

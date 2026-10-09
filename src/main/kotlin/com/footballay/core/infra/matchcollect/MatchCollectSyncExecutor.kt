@@ -7,6 +7,7 @@ import com.footballay.core.infra.dispatcher.match.MatchDataSyncDispatcher
 import com.footballay.core.infra.dispatcher.match.MatchDataSyncResult
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.FixtureMatchCollectState
+import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import com.footballay.core.logger
@@ -182,7 +183,7 @@ class MatchCollectSyncExecutorImpl(
         fixture: FixtureCore,
         now: Instant,
     ): String? {
-        val leagueSeason = fixture.leagueSeason ?: return "Fixture leagueSeason is null"
+        val leagueSeason = requireLeagueSeason(fixture)
         val league = leagueSeason.league
         return when {
             !league.available -> "League is not available"
@@ -196,7 +197,7 @@ class MatchCollectSyncExecutorImpl(
     }
 
     private fun finishedManualSkipReason(fixture: FixtureCore): String? {
-        val leagueSeason = fixture.leagueSeason ?: return "Fixture leagueSeason is null"
+        val leagueSeason = requireLeagueSeason(fixture)
         val league = leagueSeason.league
         return when {
             !league.available -> "League is not available"
@@ -212,7 +213,7 @@ class MatchCollectSyncExecutorImpl(
         fixture: FixtureCore,
         state: FixtureMatchCollectState?,
     ): String? {
-        val leagueSeason = fixture.leagueSeason ?: return "Fixture leagueSeason is null"
+        val leagueSeason = requireLeagueSeason(fixture)
         val league = leagueSeason.league
         return when {
             !league.available -> "League is not available"
@@ -225,6 +226,11 @@ class MatchCollectSyncExecutorImpl(
             state?.matchCollectStatus == MatchCollectStatus.DATA_INCOMPLETE_NEEDS_ADMIN -> "Fixture match data incomplete needs admin"
             else -> null
         }
+    }
+
+    private fun requireLeagueSeason(fixture: FixtureCore): LeagueSeasonCore = fixture.leagueSeason ?: run {
+        log.error("FixtureCore has no league season - fixtureUid={}", fixture.uid)
+        error("FixtureCore has no league season: ${fixture.uid}")
     }
 
     private fun liveSuccessStatus(

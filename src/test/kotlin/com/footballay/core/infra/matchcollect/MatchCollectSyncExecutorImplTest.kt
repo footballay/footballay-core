@@ -12,7 +12,9 @@ import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mock
@@ -240,13 +242,22 @@ class MatchCollectSyncExecutorImplTest {
     }
 
     @Test
-    fun `FINISHED 수집은 leagueSeason이 없으면 dispatcher를 호출하지 않는다`() {
+    @DisplayName("시즌 없는 경기 수집은 모든 경로에서 실패하고 dispatcher를 호출하지 않는다.")
+    fun missingLeagueSeasonFailsAllCollectionPaths() {
         val fixture = fixture("fixture-finished-no-season", withLeagueSeason = false)
         whenever(fixtureCoreRepository.findNullableByUid(fixture.uid)).thenReturn(fixture)
 
-        val result = executor.collectFinished(fixture.uid, kickoff.plusSeconds(12 * 60 * 60))
+        val operations = listOf<() -> Unit>(
+            { executor.collectFinished(fixture.uid, kickoff.plusSeconds(12 * 60 * 60)) },
+            { executor.collectFinishedIgnoringSchedule(fixture.uid, kickoff) },
+            { executor.collectLive(fixture.uid, kickoff) },
+        )
 
-        assertSkipped(result, "Fixture leagueSeason is null")
+        operations.forEach { operation ->
+            assertThatThrownBy { operation() }
+                .isInstanceOf(IllegalStateException::class.java)
+                .hasMessageContaining(fixture.uid)
+        }
         verify(dispatcher, never()).syncByFixtureUid(any())
     }
 

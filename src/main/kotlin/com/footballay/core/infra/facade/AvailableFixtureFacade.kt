@@ -161,16 +161,21 @@ class AvailableFixtureFacade(
         fixtureCoreRepository.save(fixtureCore)
     }
 
-    private fun reconcileFixtureJobs(fixtureCore: FixtureCore): ReconcileResult =
-        combineReconcileResults(
+    private fun reconcileFixtureJobs(fixtureCore: FixtureCore): ReconcileResult {
+        val leagueUid = fixtureCore.leagueSeason?.league?.uid ?: run {
+            log.error("FixtureCore has no league season - fixtureUid={}", fixtureCore.uid)
+            error("FixtureCore has no league season: ${fixtureCore.uid}")
+        }
+        return combineReconcileResults(
             fixtureUid = fixtureCore.uid,
-            leagueUid = fixtureCore.league.uid,
+            leagueUid = leagueUid,
             results =
                 listOf(
                     availableFixtureJobReconciler.reconcileFixture(fixtureCore),
                     matchCollectLiveFixtureReconciler.reconcileFixture(fixtureCore),
                 ),
         )
+    }
 
     /**
      * Quartz Job 등록 실패 시 다시 올바르게 맞추기 위한 조치

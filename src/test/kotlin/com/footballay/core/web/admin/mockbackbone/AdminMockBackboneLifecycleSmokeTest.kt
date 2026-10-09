@@ -412,6 +412,7 @@ class AdminMockBackboneLifecycleSmokeTest(
                     statusText = "Not Started",
                     statusCode = FixtureStatusCode.NS,
                     league = league,
+                    leagueSeason = season,
                     homeTeam = null,
                     awayTeam = null,
                     finished = false,

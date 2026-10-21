@@ -25,7 +25,7 @@ class FixtureCoreLeagueSeasonBackfillMigrationIntegrationTest {
             val binding = connection.createSeasonBinding()
             connection.insertFixture(leagueId = binding.leagueId, leagueSeasonId = binding.coreSeasonId)
 
-            flyway(schema).load().migrate()
+            flyway(schema).target("12").load().migrate()
 
             assertThat(connection.queryLong("SELECT COUNT(*) FROM fixture_core WHERE league_season_id IS NULL")).isZero()
             val fixtureId = connection.queryLong(
@@ -49,9 +49,45 @@ class FixtureCoreLeagueSeasonBackfillMigrationIntegrationTest {
             val binding = connection.createSeasonBinding()
             val fixtureId = connection.insertFixture(leagueId = binding.leagueId)
 
-            assertThatThrownBy { flyway(schema).load().migrate() }
+            assertThatThrownBy { flyway(schema).target("12").load().migrate() }
                 .hasStackTraceContaining("league_season_id")
             assertThat(connection.queryNullableLong("SELECT league_season_id FROM fixture_core WHERE id = $fixtureId")).isNull()
+        }
+    }
+
+    @Test
+    fun `V13 removes legacy league schema while preserving fixture season bindings`() {
+        inMigratedSchema { connection, schema ->
+            flyway(schema).target("12").load().migrate()
+            val binding = connection.createSeasonBinding()
+            val fixtureId = connection.insertFixture(leagueId = binding.leagueId, leagueSeasonId = binding.coreSeasonId)
+
+            flyway(schema).target("13").load().migrate()
+
+            assertThat(connection.queryLong("SELECT league_season_id FROM fixture_core WHERE id = $fixtureId"))
+                .isEqualTo(binding.coreSeasonId)
+            assertThat(connection.queryLong(
+                "SELECT COUNT(*) FROM information_schema.columns " +
+                    "WHERE table_schema = '$schema' AND table_name = 'fixture_core' AND column_name = 'league_id'",
+            )).isZero()
+            assertThat(connection.queryLong(
+                "SELECT COUNT(*) FROM pg_constraint " +
+                    "WHERE connamespace = '$schema'::regnamespace AND conname = 'fk_fixture_core_on_league'",
+            )).isZero()
+            assertThat(connection.queryLong(
+                "SELECT COUNT(*) FROM pg_indexes " +
+                    "WHERE schemaname = '$schema' AND indexname = 'idx_fixture_core_match_collect_scan'",
+            )).isZero()
+
+            val newFixtureId = connection.queryLong(
+                """
+                INSERT INTO fixture_core (uid, league_season_id, finished, available, auto_generated)
+                VALUES ('fixture-${UUID.randomUUID()}', ${binding.coreSeasonId}, false, false, true)
+                RETURNING id
+                """.trimIndent(),
+            )
+            assertThat(connection.queryLong("SELECT league_season_id FROM fixture_core WHERE id = $newFixtureId"))
+                .isEqualTo(binding.coreSeasonId)
         }
     }
 

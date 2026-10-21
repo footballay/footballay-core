@@ -182,7 +182,6 @@ class MatchEntityGenerator(
                 statusText = "Not Started",
                 statusCode = FixtureStatusCode.NS,
                 elapsedMin = null,
-                league = league,
                 leagueSeason = leagueSeason,
                 homeTeam = homeTeam,
                 awayTeam = awayTeam,

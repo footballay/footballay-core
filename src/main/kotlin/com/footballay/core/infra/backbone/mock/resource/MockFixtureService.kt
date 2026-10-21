@@ -68,7 +68,6 @@ class MockFixtureService(
                     statusText = statusText(command.statusCode),
                     statusCode = command.statusCode,
                     elapsedMin = null,
-                    league = mockLeague.league,
                     leagueSeason = season,
                     homeTeam = mockHomeTeam?.team,
                     awayTeam = mockAwayTeam?.team,

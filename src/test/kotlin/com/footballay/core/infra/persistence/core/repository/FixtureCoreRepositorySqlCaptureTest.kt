@@ -66,6 +66,38 @@ class FixtureCoreRepositorySqlCaptureTest {
 
     @Test
     @Transactional
+    fun fixtureWritesDoNotUseLegacyLeagueColumn() {
+        val league = LeagueCore(uid = "legacy-column-check", name = "League")
+        em.persist(league)
+        val season = LeagueSeasonCore(league = league, seasonYear = 2026)
+        em.persist(season)
+        em.flush()
+
+        inspector.clear()
+        val fixture = FixtureCore(
+            uid = "legacy-column-fixture",
+            kickoff = kickoffFrom,
+            statusText = "Not Started",
+            statusCode = FixtureStatusCode.NS,
+            leagueSeason = season,
+            homeTeam = null,
+            awayTeam = null,
+        )
+        em.persist(fixture)
+        em.flush()
+        fixture.statusText = "Updated"
+        em.flush()
+
+        val fixtureWrites = inspector.captured().filter { sql ->
+            val normalized = sql.trimStart().lowercase()
+            normalized.startsWith("insert into fixture_core") || normalized.startsWith("update fixture_core")
+        }
+        assertThat(fixtureWrites).hasSize(2)
+        assertThat(fixtureWrites).allSatisfy { sql -> assertThat(sql).doesNotContain("league_id") }
+    }
+
+    @Test
+    @Transactional
     fun fixtureLeagueReadsDoNotSelectPerFixtureOrSeason() {
         val league = LeagueCore(uid = "n-plus-one-league", name = "N+1 League", available = true)
         em.persist(league)
@@ -78,7 +110,6 @@ class FixtureCoreRepositorySqlCaptureTest {
                 kickoff = kickoffFrom.plusSeconds(index.toLong()),
                 statusText = "Not Started",
                 statusCode = FixtureStatusCode.NS,
-                league = league,
                 leagueSeason = seasons[index % seasons.size],
                 homeTeam = null,
                 awayTeam = null,

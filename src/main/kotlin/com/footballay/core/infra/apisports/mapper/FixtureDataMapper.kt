@@ -8,7 +8,6 @@ import com.footballay.core.infra.core.dto.FixtureCoreUpdateDto
 import com.footballay.core.infra.persistence.apisports.entity.ApiSportsScore
 import com.footballay.core.infra.persistence.apisports.entity.ApiSportsStatus
 import com.footballay.core.domain.fixture.FixtureStatusCode
-import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.entity.TeamCore
 import org.springframework.stereotype.Component
@@ -51,14 +50,13 @@ interface FixtureDataMapper {
      *
      * @param uid FixtureCore의 고유 식별자
      * @param dto 변환할 API Sports DTO
-     * @param league 연관된 LeagueApiSports (core 정보 포함)
+     * @param leagueSeason 연관된 Core 시즌
      * @param homeTeam 홈팀 정보 (core 정보 포함)
      * @param awayTeam 어웨이팀 정보 (core 정보 포함)
      */
     fun toFixtureCoreCreateDto(
         uid: String,
         dto: FixtureApiSportsSyncDto,
-        leagueCore: LeagueCore,
         leagueSeason: LeagueSeasonCore,
         homeTeam: TeamCore?,
         awayTeam: TeamCore?,
@@ -148,7 +146,7 @@ class FixtureDataMapperImpl : FixtureDataMapper {
      *
      * @param uid FixtureCore의 고유 식별자 (UID Generator로 생성됨)
      * @param dto 변환할 API Sports DTO
-     * @param leagueCore 연관될 LeagueCore 엔티티
+     * @param leagueSeason 연관될 Core 시즌
      * @param homeTeam 홈팀 Core 엔티티 (null 가능 - 미정 팀인 경우)
      * @param awayTeam 어웨이팀 Core 엔티티 (null 가능 - 미정 팀인 경우)
      * @return 변환된 FixtureCoreCreateDto
@@ -156,7 +154,6 @@ class FixtureDataMapperImpl : FixtureDataMapper {
     override fun toFixtureCoreCreateDto(
         uid: String,
         dto: FixtureApiSportsSyncDto,
-        leagueCore: LeagueCore,
         leagueSeason: LeagueSeasonCore,
         homeTeam: TeamCore?,
         awayTeam: TeamCore?,
@@ -171,7 +168,6 @@ class FixtureDataMapperImpl : FixtureDataMapper {
             elapsedMin = dto.status?.elapsed,
             goalsHome = dto.score?.fulltimeHome,
             goalsAway = dto.score?.fulltimeAway,
-            leagueCore = leagueCore,
             leagueSeason = leagueSeason,
             homeTeam = homeTeam,
             awayTeam = awayTeam,

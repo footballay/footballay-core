@@ -348,7 +348,7 @@ class FixtureCoreRepositoryTest {
     }
 
     @Test
-    fun `fixture core 는 nullable league season 을 저장할 수 있다`() {
+    fun `fixture core 는 필수 league season 을 저장한다`() {
         val leagueSeason = leagueSeasons.getValue(testLeague.uid)
         fixtureCoreRepository.save(
             createFixture(
@@ -357,24 +357,13 @@ class FixtureCoreRepositoryTest {
                 leagueSeason = leagueSeason,
             ),
         )
-        fixtureCoreRepository.save(
-            createFixture(
-                uid = "fixture-without-league-season",
-                kickoff = Instant.parse("2025-08-01T13:00:00Z"),
-                leagueSeason = null,
-            ),
-        )
         em.flush()
         em.clear()
 
         val found = fixtureCoreRepository.findByUid("fixture-with-league-season")
 
-        assertThat(found.leagueSeason).isNotNull
-        assertThat(found.leagueSeason?.id).isEqualTo(leagueSeason.id)
-        assertThat(found.leagueSeason?.league?.id).isEqualTo(testLeague.id)
-        assertThat(fixtureCoreRepository.findByUid("fixture-without-league-season").leagueSeason).isNull()
-        assertThat(fixtureCoreRepository.findNullableByUid("fixture-without-league-season")?.uid)
-            .isEqualTo("fixture-without-league-season")
+        assertThat(found.leagueSeason.id).isEqualTo(leagueSeason.id)
+        assertThat(found.leagueSeason.league.id).isEqualTo(testLeague.id)
     }
 
     @Test
@@ -529,24 +518,7 @@ class FixtureCoreRepositoryTest {
     }
 
     @Test
-    @DisplayName("available fixture 조회는 직접 리그가 같아도 시즌 없는 경기를 제외한다.")
-    fun findAvailableFixturesByLeagueUidExcludesFixturesWithoutSeason() {
-        fixtureCoreRepository.saveAll(
-            listOf(
-                createFixture("season-linked", Instant.parse("2025-08-01T10:00:00Z")),
-                createFixture("season-missing", Instant.parse("2025-08-02T10:00:00Z"), leagueSeason = null),
-            ),
-        )
-        em.flush()
-        em.clear()
-
-        val result = fixtureCoreRepository.findAvailableFixturesByLeagueUid(testLeague.uid)
-
-        assertThat(result.map { it.uid }).containsExactly("season-linked")
-    }
-
-    @Test
-    @DisplayName("범위·최근접 조회는 직접 리그가 불일치해도 시즌 리그를 따른다.")
+    @DisplayName("범위·최근접 조회는 시즌 리그를 따른다.")
     fun rangeAndNearestQueriesUseSeasonLeague() {
         val otherLeague =
             leagueCoreRepository.save(
@@ -554,7 +526,7 @@ class FixtureCoreRepositoryTest {
             )
         val kickoff = Instant.parse("2025-08-01T10:00:00Z")
         val fixture = fixtureCoreRepository.save(
-            createFixture("season-range-fixture", kickoff, league = otherLeague, leagueSeason = seasonFor(testLeague)),
+            createFixture("season-range-fixture", kickoff, leagueSeason = seasonFor(testLeague)),
         )
         em.flush()
         em.clear()
@@ -618,7 +590,7 @@ class FixtureCoreRepositoryTest {
         uid: String,
         kickoff: Instant,
         league: LeagueCore = testLeague,
-        leagueSeason: LeagueSeasonCore? = seasonFor(league),
+        leagueSeason: LeagueSeasonCore = seasonFor(league),
         available: Boolean = true,
     ): FixtureCore =
         FixtureCore(
@@ -626,7 +598,6 @@ class FixtureCoreRepositoryTest {
             kickoff = kickoff,
             statusText = "Not Started",
             statusCode = FixtureStatusCode.NS,
-            league = league,
             leagueSeason = leagueSeason,
             homeTeam = homeTeam,
             awayTeam = awayTeam,
@@ -653,7 +624,7 @@ class FixtureCoreRepositoryTest {
         uid: String,
         kickoff: Instant,
         league: LeagueCore = testLeague,
-        leagueSeason: LeagueSeasonCore? = seasonFor(league),
+        leagueSeason: LeagueSeasonCore = seasonFor(league),
     ) {
         val fixture = fixtureCoreRepository.save(createFixture(uid, kickoff, league, leagueSeason))
         fixtureApiSportsRepository.save(

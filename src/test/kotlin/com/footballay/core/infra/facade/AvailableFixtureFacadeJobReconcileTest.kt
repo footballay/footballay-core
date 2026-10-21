@@ -343,7 +343,6 @@ class AvailableFixtureFacadeJobReconcileTest {
             statusText = "Not Started",
             statusCode = FixtureStatusCode.NS,
             elapsedMin = null,
-            league = league,
             leagueSeason = LeagueSeasonCore(id = 1L, league = league, seasonYear = 2026),
             homeTeam = null,
             awayTeam = null,

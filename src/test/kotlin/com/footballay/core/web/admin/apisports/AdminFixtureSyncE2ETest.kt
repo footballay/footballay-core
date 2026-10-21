@@ -139,14 +139,14 @@ class AdminFixtureSyncE2ETest {
         // 4. 관계 검증: FixtureApiSports → FixtureCore → Teams/League
         val firstFixture = fixtureApiSports.first()
         assertThat(firstFixture.core).isNotNull
-        assertThat(firstFixture.core!!.league).isNotNull
+        assertThat(firstFixture.core!!.leagueSeason.league).isNotNull
         assertThat(firstFixture.core!!.homeTeam).isNotNull
         assertThat(firstFixture.core!!.awayTeam).isNotNull
         assertThat(firstFixture.season).isNotNull
         assertThat(firstFixture.venue).isNotNull
         log.info("✓ Fixture 관계 검증 완료")
         log.info("  - Fixture ID: ${firstFixture.apiId}")
-        log.info("  - League: ${firstFixture.core!!.league!!.name}")
+        log.info("  - League: ${firstFixture.core!!.leagueSeason.league.name}")
         log.info("  - Home: ${firstFixture.core!!.homeTeam!!.name}")
         log.info("  - Away: ${firstFixture.core!!.awayTeam!!.name}")
         log.info("  - Venue: ${firstFixture.venue!!.name}")

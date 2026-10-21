@@ -224,7 +224,6 @@ class MockFixtureServiceTest {
             kickoff = now,
             statusText = "Not Started",
             statusCode = FixtureStatusCode.NS,
-            league = league,
             leagueSeason = LeagueSeasonCore(league = league, seasonYear = 2026, current = true),
             homeTeam = team(10L, "home-1"),
             awayTeam = team(11L, "away-1"),

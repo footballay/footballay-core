@@ -739,12 +739,9 @@ class FixtureApiSportsWithCoreSyncer(
         val uidFixtureApiSyncDtoPairs = fixtureCoreSyncService.generateUidPairs(coreCreateDtos)
         log.info("Generated {} UID pairs", uidFixtureApiSyncDtoPairs.size)
 
-        val leagueCore =
-            fixtureData.league.leagueCore
-                ?: throw IllegalStateException("LeagueCore must not be null for core creation")
         // Map<Team ApiId, TeamApiSports>
         val teamEntityFromApiId = fixtureData.teams.filter { it.apiId != null }.associateBy { it.apiId!! }
-        val savedUidToCoreMap = saveFixtureCoreAndGetMap(uidFixtureApiSyncDtoPairs, teamEntityFromApiId, leagueCore, fixtureData.coreSeason)
+        val savedUidToCoreMap = saveFixtureCoreAndGetMap(uidFixtureApiSyncDtoPairs, teamEntityFromApiId, fixtureData.coreSeason)
         log.info("Successfully created {} FixtureCores", savedUidToCoreMap.size)
 
         // Map<ApiId, FixtureCore>
@@ -781,7 +778,6 @@ class FixtureApiSportsWithCoreSyncer(
     private fun saveFixtureCoreAndGetMap(
         uidPairs: List<Pair<String, FixtureApiSportsSyncDto>>,
         teamEntityFromApiId: Map<Long, TeamApiSports>,
-        leagueCore: LeagueCore,
         coreSeason: LeagueSeasonCore,
     ): Map<String, FixtureCore> {
         val fixtureCoreCreatePairs =
@@ -797,7 +793,7 @@ class FixtureApiSportsWithCoreSyncer(
                         ?.let { teamEntityFromApiId[it] }
                         ?.teamCore
 
-                val coreDto = fixtureDataMapper.toFixtureCoreCreateDto(uid, dto, leagueCore, coreSeason, homeTeam, awayTeam)
+                val coreDto = fixtureDataMapper.toFixtureCoreCreateDto(uid, dto, coreSeason, homeTeam, awayTeam)
                 uid to coreDto
             }
 
@@ -897,8 +893,6 @@ class FixtureApiSportsWithCoreSyncer(
         fixtureApiSportsMap.values.forEach { fixture ->
             fixture.season = fixtureData.providerSeason
             fixture.core?.leagueSeason = fixtureData.coreSeason
-            // 직접 league 컬럼은 구 버전 호환용으로 함께 유지합니다.
-            fixture.core?.league = fixtureData.coreSeason.league
         }
 
         // 3) 상세 로깅

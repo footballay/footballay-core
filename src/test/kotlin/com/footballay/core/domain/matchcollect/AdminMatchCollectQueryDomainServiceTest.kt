@@ -8,7 +8,6 @@ import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mock
@@ -109,16 +108,6 @@ class AdminMatchCollectQueryDomainServiceTest {
         )
     }
 
-    @Test
-    fun `season missing fixture state mapping fails instead of using direct league`() {
-        val fixture = fixture().apply { leagueSeason = null }
-        val state = FixtureMatchCollectState(fixture = fixture, matchCollectStatus = MatchCollectStatus.PENDING)
-
-        assertThatThrownBy { AdminMatchCollectQueryModelMapper().toStateModel(state) }
-            .isInstanceOf(IllegalStateException::class.java)
-            .hasMessageContaining(fixture.uid)
-    }
-
     private fun service() =
         AdminMatchCollectQueryDomainService(
             stateRepository = stateRepository,
@@ -149,7 +138,6 @@ class AdminMatchCollectQueryDomainServiceTest {
             kickoff = Instant.parse("2026-06-20T09:00:00Z"),
             statusText = FixtureStatusCode.FT.code,
             statusCode = FixtureStatusCode.FT,
-            league = league,
             leagueSeason = season,
             homeTeam = null,
             awayTeam = null,

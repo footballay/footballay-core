@@ -22,7 +22,7 @@ class AdminSeasonCoreMigrationController(
         summary = "Season Core 마이그레이션 준비 상태 검사",
         description =
             "LeagueCore/LeagueSeasonCore/LeagueApiSportsSeason/FixtureCore/FixtureApiSports 간 season binding 정합성을 검사합니다. " +
-                "ready=true이면 legacy FixtureCore.league 제거 또는 season-aware query 전환을 검토할 수 있는 상태입니다.",
+                "ready=true이면 확인된 season binding 오류가 없는 상태입니다.",
     )
     @GetMapping("/migration-readiness")
     fun checkMigrationReadiness(): SeasonCoreMigrationReadinessReport = readinessService.check()

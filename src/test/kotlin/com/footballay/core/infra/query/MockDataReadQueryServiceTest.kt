@@ -126,10 +126,9 @@ class MockDataReadQueryServiceTest {
     }
 
     @Test
-    @DisplayName("일정 모델의 리그 UID는 레거시 직접 연결이 아닌 조회한 리그 시즌을 따른다.")
+    @DisplayName("일정 모델의 리그 UID는 조회한 리그 시즌을 따른다.")
     fun `schedule fixture league uid follows queried league season`() {
         saveApiFixture("api-mismatched-league", sharedLeague, Instant.parse("2026-06-10T10:00:00Z"))
-        fixtureCoreRepository.findByUid("api-mismatched-league").league = mockLeague
         entityManager.flush()
         entityManager.clear()
 
@@ -484,7 +483,6 @@ class MockDataReadQueryServiceTest {
                 kickoff = kickoff,
                 statusText = "Not Started",
                 statusCode = FixtureStatusCode.NS,
-                league = league,
                 leagueSeason = sharedSeason,
                 homeTeam = null,
                 awayTeam = null,

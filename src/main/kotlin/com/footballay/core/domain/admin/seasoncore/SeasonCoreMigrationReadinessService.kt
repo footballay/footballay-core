@@ -91,7 +91,7 @@ class SeasonCoreMigrationReadinessService(
                 ),
                 issue(
                     code = "CORE_SEASON_MISSING_PROVIDER_SEASON",
-                    severity = SeasonCoreMigrationReadinessSeverity.ERROR,
+                    severity = SeasonCoreMigrationReadinessSeverity.WARN,
                     description = "LeagueSeasonCore is not linked by any LeagueApiSportsSeason.",
                     countSql =
                         """
@@ -226,28 +226,6 @@ class SeasonCoreMigrationReadinessService(
                           AND fc.league_season_id IS NOT NULL
                           AND fc.league_season_id <> ps.league_season_core_id
                         ORDER BY af.id
-                        """.trimIndent(),
-                ),
-                issue(
-                    code = "FIXTURE_CORE_LEGACY_LEAGUE_MISMATCH",
-                    severity = SeasonCoreMigrationReadinessSeverity.ERROR,
-                    description = "FixtureCore.league differs from FixtureCore.leagueSeason.league.",
-                    countSql =
-                        """
-                        SELECT COUNT(*)
-                        FROM fixture_core fc
-                        JOIN league_season_core cs ON cs.id = fc.league_season_id
-                        WHERE fc.league_id IS NOT NULL
-                          AND cs.league_core_id <> fc.league_id
-                        """.trimIndent(),
-                    affectedIdsSql =
-                        """
-                        SELECT fc.id
-                        FROM fixture_core fc
-                        JOIN league_season_core cs ON cs.id = fc.league_season_id
-                        WHERE fc.league_id IS NOT NULL
-                          AND cs.league_core_id <> fc.league_id
-                        ORDER BY fc.id
                         """.trimIndent(),
                 ),
                 issue(

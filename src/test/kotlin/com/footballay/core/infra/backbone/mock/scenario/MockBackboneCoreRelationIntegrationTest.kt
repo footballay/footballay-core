@@ -79,7 +79,7 @@ class MockBackboneCoreRelationIntegrationTest {
         assertThat(mockHomeTeam!!.scenarioUid).isEqualTo(created.scenarioUid)
         assertThat(mockAwayTeam!!.scenarioUid).isEqualTo(created.scenarioUid)
         assertThat(mockFixture!!.scenarioUid).isEqualTo(created.scenarioUid)
-        assertThat(mockFixture.fixture.league.uid).isEqualTo(created.leagueCoreUid)
+        assertThat(mockFixture.fixture.leagueSeason.league.uid).isEqualTo(created.leagueCoreUid)
         val season = requireNotNull(mockFixture.fixture.leagueSeason)
         val seasonId = requireNotNull(season.id)
         assertThat(season.league.uid).isEqualTo(created.leagueCoreUid)

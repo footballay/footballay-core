@@ -343,7 +343,6 @@ class MockDataReadRepositoryQueryTest {
                 kickoff = kickoff,
                 statusText = "Not Started",
                 statusCode = FixtureStatusCode.NS,
-                league = league,
                 leagueSeason = requireNotNull(leagueSeasons[league.uid]),
                 homeTeam = null,
                 awayTeam = null,

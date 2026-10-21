@@ -154,7 +154,6 @@ class LeagueMatchCollectManagerTest {
                 kickoff = kickoff,
                 statusText = "Not Started",
                 statusCode = FixtureStatusCode.NS,
-                league = league,
                 leagueSeason = season,
                 homeTeam = null,
                 awayTeam = null,

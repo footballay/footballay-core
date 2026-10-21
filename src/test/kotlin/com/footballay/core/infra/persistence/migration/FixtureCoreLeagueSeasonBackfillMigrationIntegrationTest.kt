@@ -11,12 +11,50 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.utility.DockerImageName
 import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.SQLException
 import java.util.UUID
 
-/** 실제 PostgreSQL에서 V10의 fixture season backfill 안전 조건을 검증합니다. */
+/** 실제 PostgreSQL에서 FixtureCore 시즌 backfill과 필수화 migration을 검증합니다. */
 @Testcontainers
 @DisplayName("FixtureCore league season backfill Flyway migration 통합 테스트")
 class FixtureCoreLeagueSeasonBackfillMigrationIntegrationTest {
+    @Test
+    fun `V12 requires a season and retains the legacy league column`() {
+        inMigratedSchema { connection, schema ->
+            flyway(schema).target("11").load().migrate()
+            val binding = connection.createSeasonBinding()
+            connection.insertFixture(leagueId = binding.leagueId, leagueSeasonId = binding.coreSeasonId)
+
+            flyway(schema).load().migrate()
+
+            assertThat(connection.queryLong("SELECT COUNT(*) FROM fixture_core WHERE league_season_id IS NULL")).isZero()
+            val fixtureId = connection.queryLong(
+                """
+                INSERT INTO fixture_core (uid, league_season_id, finished, available, auto_generated)
+                VALUES ('fixture-${UUID.randomUUID()}', ${binding.coreSeasonId}, false, false, true)
+                RETURNING id
+                """.trimIndent(),
+            )
+            assertThat(connection.queryNullableLong("SELECT league_id FROM fixture_core WHERE id = $fixtureId")).isNull()
+            assertThatThrownBy { connection.insertFixture(leagueId = binding.leagueId) }
+                .isInstanceOf(SQLException::class.java)
+                .hasMessageContaining("league_season_id")
+        }
+    }
+
+    @Test
+    fun `V12 rejects an existing fixture without a season`() {
+        inMigratedSchema { connection, schema ->
+            flyway(schema).target("11").load().migrate()
+            val binding = connection.createSeasonBinding()
+            val fixtureId = connection.insertFixture(leagueId = binding.leagueId)
+
+            assertThatThrownBy { flyway(schema).load().migrate() }
+                .hasStackTraceContaining("league_season_id")
+            assertThat(connection.queryNullableLong("SELECT league_season_id FROM fixture_core WHERE id = $fixtureId")).isNull()
+        }
+    }
+
     @Test
     fun `valid null fixture is backfilled to its provider core season`() {
         inMigratedSchema { connection, schema ->
@@ -165,7 +203,7 @@ class FixtureCoreLeagueSeasonBackfillMigrationIntegrationTest {
     }
 
     private fun migrateToV10(schema: String) {
-        flyway(schema).load().migrate()
+        flyway(schema).target("10").load().migrate()
     }
 
     private fun assertMigrationFails(schema: String, expectedMessage: String) {

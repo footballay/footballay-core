@@ -130,7 +130,6 @@ class FixtureCoreMatchCollectLiveJobRepositoryTest {
                 kickoff = Instant.parse("2026-06-15T09:00:00Z"),
                 statusText = FixtureStatusCode.NS.code,
                 statusCode = FixtureStatusCode.NS,
-                league = league,
                 leagueSeason = season,
                 homeTeam = null,
                 awayTeam = null,

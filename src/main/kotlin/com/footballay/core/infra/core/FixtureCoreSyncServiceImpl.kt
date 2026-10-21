@@ -29,8 +29,6 @@ class FixtureCoreSyncServiceImpl(
             return emptyMap()
         }
 
-        validateCreateRequests(createPairs)
-
         val fixtureCores =
             createPairs.map { (uid, createDto) ->
                 createFixtureCore(uid, createDto)
@@ -59,14 +57,6 @@ class FixtureCoreSyncServiceImpl(
         return savedFixtureCores.associateBy { it.uid }
     }
 
-    private fun validateCreateRequests(createPairs: List<Pair<String, FixtureCoreCreateDto>>) {
-        createPairs.forEach { (_, dto) ->
-            require(dto.leagueCore.id != null && dto.leagueCore.id == dto.leagueSeason.league.id) {
-                "Fixture league must match its season league: uid=${dto.uid}"
-            }
-        }
-    }
-
     private fun createFixtureCore(
         uid: String,
         createDto: FixtureCoreCreateDto,
@@ -77,8 +67,6 @@ class FixtureCoreSyncServiceImpl(
             statusText = createDto.status ?: "Unknown",
             statusCode = createDto.statusShort ?: FixtureStatusCode.NS,
             elapsedMin = createDto.elapsedMin,
-            // 구 active 및 롤백 호환 쓰기이며 직접 league 매핑 제거 배포에서 정리합니다.
-            league = createDto.leagueSeason.league,
             leagueSeason = createDto.leagueSeason,
             homeTeam = createDto.homeTeam,
             awayTeam = createDto.awayTeam,
@@ -98,8 +86,6 @@ class FixtureCoreSyncServiceImpl(
         fixtureCore.statusCode = updateDto.statusShort
         fixtureCore.elapsedMin = updateDto.elapsedMin
         fixtureCore.leagueSeason = updateDto.leagueSeason
-        // 구 버전이 읽는 직접 league 값도 시즌 리그와 일치시킵니다.
-        fixtureCore.league = updateDto.leagueSeason.league
         fixtureCore.homeTeam = updateDto.homeTeam
         fixtureCore.awayTeam = updateDto.awayTeam
         fixtureCore.goalsHome = updateDto.goalsHome

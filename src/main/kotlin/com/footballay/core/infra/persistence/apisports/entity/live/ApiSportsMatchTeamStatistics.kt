@@ -7,8 +7,6 @@ import jakarta.persistence.*
 class ApiSportsMatchTeamStatistics(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
-    @OneToOne(fetch = FetchType.LAZY, mappedBy = "teamStatistics", optional = true)
-    var matchTeam: ApiSportsMatchTeam?,
     @OneToMany(
         mappedBy = "matchTeamStatistics",
         cascade = [CascadeType.ALL],

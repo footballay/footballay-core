@@ -6,6 +6,7 @@ import com.footballay.core.infra.apisports.match.plan.context.MatchEntityBundle
 import com.footballay.core.infra.apisports.match.plan.context.MatchPlayerContext
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchEventRepository
 import com.footballay.core.logger
+import jakarta.persistence.EntityManager
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -22,6 +23,9 @@ import org.springframework.transaction.annotation.Transactional
 @Import(MatchEntityGenerator::class)
 @DisplayName("MatchDataLoaderImpl 테스트")
 class MatchDataLoaderImplTest {
+    @Autowired
+    private lateinit var em: EntityManager
+
     @Autowired
     private lateinit var apiSportsMatchEventRepository: ApiSportsMatchEventRepository
     private val log = logger()
@@ -292,6 +296,8 @@ class MatchDataLoaderImplTest {
         val fixtureApiId = matchEntities.fixtureApiSports.apiId
         val playerContext = MatchPlayerContext()
         val entityBundle = MatchEntityBundle.createEmpty()
+        em.flush()
+        em.clear()
 
         // when
         matchDataLoader.loadContext(fixtureApiId, playerContext, entityBundle)
@@ -299,19 +305,19 @@ class MatchDataLoaderImplTest {
         // then
         // 홈팀 통계 검증
         assertThat(entityBundle.homeTeamStat).isNotNull()
-        assertThat(entityBundle.homeTeamStat?.matchTeam?.id).isEqualTo(matchEntities.homeMatchTeam.id)
+        assertThat(entityBundle.homeTeam?.id).isEqualTo(matchEntities.homeMatchTeam.id)
         assertThat(entityBundle.homeTeamStat?.totalShots).isEqualTo(8)
         assertThat(entityBundle.homeTeamStat?.ballPossession).isEqualTo("55%")
         assertThat(entityBundle.homeTeamStat?.totalPasses).isEqualTo(450)
 
         // 원정팀 통계 검증
         assertThat(entityBundle.awayTeamStat).isNotNull()
-        assertThat(entityBundle.awayTeamStat?.matchTeam?.id).isEqualTo(matchEntities.awayMatchTeam.id)
+        assertThat(entityBundle.awayTeam?.id).isEqualTo(matchEntities.awayMatchTeam.id)
         assertThat(entityBundle.awayTeamStat?.totalShots).isEqualTo(8)
         assertThat(entityBundle.awayTeamStat?.ballPossession).isEqualTo("55%")
         assertThat(entityBundle.awayTeamStat?.totalPasses).isEqualTo(450)
 
-        // 팀 통계와 팀 간의 양방향 관계 확인
+        // owning 방향의 팀→통계 연결 확인
         assertThat(entityBundle.homeTeam?.teamStatistics?.id).isEqualTo(entityBundle.homeTeamStat?.id)
         assertThat(entityBundle.awayTeam?.teamStatistics?.id).isEqualTo(entityBundle.awayTeamStat?.id)
 

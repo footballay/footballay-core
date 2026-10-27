@@ -185,6 +185,13 @@ class MatchDataSyncIntegrationTest {
         val firstSyncFixture = fixtureApiSportsRepository.findByApiId(TEST_FIXTURE_API_ID)
         val firstMatchPlayerCount = firstSyncFixture?.homeTeam?.players?.size ?: 0
         val firstEventCount = firstSyncFixture?.events?.size ?: 0
+        val firstHomeStats = requireNotNull(firstSyncFixture?.homeTeam?.teamStatistics)
+        val firstAwayStats = requireNotNull(firstSyncFixture?.awayTeam?.teamStatistics)
+        val firstStatIds = listOf(firstHomeStats.id, firstAwayStats.id)
+        val originalHomeShots = firstHomeStats.totalShots
+        firstHomeStats.totalShots = -1
+        em.flush()
+        em.clear()
         log.info("첫 번째 동기화 결과: MatchPlayer = $firstMatchPlayerCount, Events = $firstEventCount")
 
         // when - 두 번째 동기화 (업데이트)
@@ -201,6 +208,10 @@ class MatchDataSyncIntegrationTest {
         // then - 데이터 일관성 유지
         assertThat(secondMatchPlayerCount).isEqualTo(firstMatchPlayerCount)
         assertThat(secondEventCount).isEqualTo(firstEventCount)
+        assertThat(listOf(secondSyncFixture?.homeTeam?.teamStatistics?.id, secondSyncFixture?.awayTeam?.teamStatistics?.id))
+            .containsExactlyElementsOf(firstStatIds)
+        assertThat(secondSyncFixture?.homeTeam?.teamStatistics?.totalShots).isEqualTo(originalHomeShots)
+        verifyTeamStats(requireNotNull(secondSyncFixture))
         log.info("=== 반복 동기화 일관성 검증 완료 ===")
     }
 
@@ -365,10 +376,11 @@ class MatchDataSyncIntegrationTest {
             "  ✓ Away Team XG: ${awayXgList?.first()?.expectedGoals} (elapsed: ${awayXgList?.first()?.elapsedTime}분)",
         )
 
-        // MatchTeam ↔ TeamStats 양방향 연관관계 검증
-        assertThat(homeStats?.matchTeam).isEqualTo(homeTeam)
-        assertThat(awayStats?.matchTeam).isEqualTo(awayTeam)
-        log.info("  ✓ MatchTeam ↔ TeamStats 양방향 연관관계 정상")
+        // owning 방향의 MatchTeam → TeamStats 연결 검증
+        assertThat(homeStats?.id).isNotNull
+        assertThat(awayStats?.id).isNotNull
+        assertThat(homeStats?.id).isNotEqualTo(awayStats?.id)
+        log.info("  ✓ MatchTeam → TeamStats 연관관계 정상")
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.footballay.core.infra.match.FixtureStatusClassifier
 import com.footballay.core.infra.match.FixtureStatusGroup
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
+import com.footballay.core.infra.persistence.core.read.AvailableFixtureJobInput
 import com.footballay.core.infra.scheduler.matchjob.MatchJobIdentity
 import com.footballay.core.infra.scheduler.matchjob.MatchJobKeyFactory
 import com.footballay.core.infra.scheduler.matchjob.MatchJobOwner
@@ -100,7 +101,7 @@ class AvailableFixtureJobReconciler(
      * 각 fixture 의 available job 을 현재 DB 상태에서 계산한 state 에 맞춰서 생성/수정/삭제하고 결과를 반환합니다.
      */
     fun reconcileLeague(leagueUid: String): ReconcileResult {
-        val fixtures = fixtureCoreRepository.findAvailableFixturesByLeagueUid(leagueUid)
+        val fixtures = fixtureCoreRepository.findAvailableJobInputsByLeagueUid(leagueUid)
         if (fixtures.isEmpty()) {
             return ReconcileResult.empty(fixtureUid = null, leagueUid = leagueUid)
         }
@@ -122,11 +123,14 @@ class AvailableFixtureJobReconciler(
             log.error("FixtureCore has no league season - fixtureUid={}", fixture.uid)
             error("FixtureCore has no league season: ${fixture.uid}")
         }
-        return reconcileFixture(fixture, leagueUid)
+        return reconcileFixture(
+            AvailableFixtureJobInput(fixture.uid, fixture.kickoff, fixture.available, fixture.statusCode),
+            leagueUid,
+        )
     }
 
     private fun reconcileFixture(
-        fixture: FixtureCore,
+        fixture: AvailableFixtureJobInput,
         leagueUid: String,
     ): ReconcileResult {
         val desired = desiredJobs(fixture, Instant.now(clock))
@@ -150,11 +154,11 @@ class AvailableFixtureJobReconciler(
     }
 
     /**
-     * FixtureCore 와 기준 시각을 받아 Quartz 에 있어야 할 available job 목록을 계산합니다.
+     * 경기 읽기 값과 기준 시각을 받아 Quartz 에 있어야 할 available job 목록을 계산합니다.
      * Quartz 에는 접근하지 않고, `available`, `kickoff`, status group, collection window 만으로 desired phase 를 정합니다.
      */
     private fun desiredJobs(
-        fixture: FixtureCore,
+        fixture: AvailableFixtureJobInput,
         now: Instant,
     ): Map<MatchJobPhase, DesiredAvailableJob> {
         val kickoff = fixture.kickoff

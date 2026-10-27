@@ -4,6 +4,8 @@ import com.footballay.core.domain.league.MatchCollect
 import com.footballay.core.domain.matchcollect.MatchCollectStatus
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
+import com.footballay.core.infra.persistence.core.read.AvailableFixtureJobInput
+import com.footballay.core.infra.persistence.core.read.FixtureScheduleReadRow
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -13,6 +15,48 @@ import java.time.Instant
 
 @Repository
 interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
+    // 성능 개선: 전체 available 범위는 유지하고 job 계산에 쓰지 않는 연관 엔티티는 로드하지 않습니다.
+    @Query(
+        """
+        SELECT new com.footballay.core.infra.persistence.core.read.AvailableFixtureJobInput(
+            f.uid, f.kickoff, f.available, f.statusCode
+        )
+        FROM LeagueSeasonCore ls
+        JOIN ls.league l
+        JOIN FixtureCore f ON f.leagueSeason = ls
+        WHERE l.uid = :leagueUid AND f.available = true
+        """,
+    )
+    fun findAvailableJobInputsByLeagueUid(@Param("leagueUid") leagueUid: String): List<AvailableFixtureJobInput>
+
+    // 성능 개선: 기존 기간·provider 조건은 보존하고 일정 DTO에 필요한 스칼라만 조회합니다.
+    @Query(
+        """
+        SELECT new com.footballay.core.infra.persistence.core.read.FixtureScheduleReadRow(
+            f.uid, f.kickoff, f.statusText, f.statusCode, f.elapsedMin,
+            f.goalsHome, f.goalsAway, f.available, fas.apiId, fas.round, fas.referee, fas.status.extra,
+            ht.uid, ht.name, homeApi.id, homeApi.logo,
+            at.uid, at.name, awayApi.id, awayApi.logo
+        )
+        FROM LeagueSeasonCore ls
+        JOIN ls.league l
+        JOIN FixtureCore f ON f.leagueSeason = ls
+        JOIN f.apiSports fas
+        LEFT JOIN f.homeTeam ht
+        LEFT JOIN f.awayTeam at
+        LEFT JOIN ht.teamApiSports homeApi
+        LEFT JOIN at.teamApiSports awayApi
+        WHERE l.uid = :leagueUid
+          AND f.kickoff >= :startInclusive AND f.kickoff < :endExclusive
+        ORDER BY f.kickoff ASC
+        """,
+    )
+    fun findScheduleRowsByLeagueUidInKickoffRange(
+        @Param("leagueUid") leagueUid: String,
+        @Param("startInclusive") startInclusive: Instant,
+        @Param("endExclusive") endExclusive: Instant,
+    ): List<FixtureScheduleReadRow>
+
     // 시즌 전환: Mock 리그 삭제 전에 시즌을 통한 경기 잔존 여부를 확인합니다.
     fun existsByLeagueSeason_League(league: LeagueCore): Boolean
 

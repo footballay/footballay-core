@@ -6,6 +6,7 @@ import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
+import com.footballay.core.infra.persistence.core.read.AvailableFixtureJobInput
 import com.footballay.core.infra.scheduler.matchjob.MatchJobIdentity
 import com.footballay.core.infra.scheduler.matchjob.MatchJobKeyFactory
 import com.footballay.core.infra.scheduler.matchjob.MatchJobOwner
@@ -178,7 +179,8 @@ class AvailableFixtureJobReconcilerTest {
                 fixture(uid = "fixture-1", kickoff = kickoff, statusCode = FixtureStatusCode.NS),
                 fixture(uid = "fixture-2", kickoff = kickoff, statusCode = FixtureStatusCode.NS),
             )
-        whenever(fixtureCoreRepository.findAvailableFixturesByLeagueUid(leagueUid)).thenReturn(fixtures)
+        whenever(fixtureCoreRepository.findAvailableJobInputsByLeagueUid(leagueUid))
+            .thenReturn(fixtures.map { AvailableFixtureJobInput(it.uid, it.kickoff, it.available, it.statusCode) })
         whenever(jobSchedulerService.registerOrReplaceAvailableJob(any(), any(), any(), any(), any()))
             .thenReturn(MatchJobRegistrationResult.Registered)
 
@@ -196,8 +198,8 @@ class AvailableFixtureJobReconcilerTest {
     fun reconcileLeagueRegistersJobsWithQueriedLeagueUid() {
         val queriedLeagueUid = "queried-league"
         val kickoff = now.plusSeconds(60 * 60)
-        whenever(fixtureCoreRepository.findAvailableFixturesByLeagueUid(queriedLeagueUid))
-            .thenReturn(listOf(fixture(kickoff = kickoff, statusCode = FixtureStatusCode.NS)))
+        whenever(fixtureCoreRepository.findAvailableJobInputsByLeagueUid(queriedLeagueUid))
+            .thenReturn(listOf(AvailableFixtureJobInput(fixtureUid, kickoff, true, FixtureStatusCode.NS)))
         whenever(jobSchedulerService.registerOrReplaceAvailableJob(any(), any(), any(), any(), any()))
             .thenReturn(MatchJobRegistrationResult.Registered)
 

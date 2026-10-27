@@ -17,6 +17,7 @@ import com.footballay.core.domain.fixture.FixtureStatusCode
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.PlayerCore
 import com.footballay.core.infra.persistence.core.entity.TeamCore
+import com.footballay.core.infra.persistence.core.read.FixtureScheduleReadRow
 import org.springframework.stereotype.Component
 
 /**
@@ -27,6 +28,33 @@ import org.springframework.stereotype.Component
  */
 @Component
 class DomainModelMapper {
+    /** 일정용 projection을 기존 응답 모델과 동일한 null/provider 규칙으로 변환합니다. */
+    fun toFixtureModel(
+        row: FixtureScheduleReadRow,
+        leagueUid: String,
+    ): FixtureModel =
+        FixtureModel(
+            uid = row.uid,
+            leagueUid = leagueUid,
+            schedule = FixtureModel.FixtureSchedule(row.kickoff, row.round ?: ""),
+            homeTeam =
+                if (row.homeUid != null && row.homeProviderId != null) {
+                    FixtureModel.TeamSide(row.homeUid, requireNotNull(row.homeName), row.homeLogo)
+                } else {
+                    null
+                },
+            awayTeam =
+                if (row.awayUid != null && row.awayProviderId != null) {
+                    FixtureModel.TeamSide(row.awayUid, requireNotNull(row.awayName), row.awayLogo)
+                } else {
+                    null
+                },
+            status = FixtureModel.Status(row.statusText, mapStatusCode(row.statusCode), row.elapsedMin, row.extra),
+            score = FixtureModel.Score(row.goalsHome, row.goalsAway),
+            available = row.available,
+            extension = FixtureApiSportsExtension(row.apiId, row.referee),
+        )
+
     fun toLeagueModel(leagueCore: LeagueCore): LeagueModel =
         LeagueModel(
             uid = leagueCore.uid,

@@ -533,9 +533,7 @@ class FixtureApiSportsWithCoreSyncerIntegrationTest {
             leagueApiSportsSeasonRepository.deleteAll()
             teamApiSportsRepository.deleteAll()
             teamCoreRepository.deleteAll()
-            val providerLeagues = leagueApiSportsRepository.findAll()
-            providerLeagues.forEach { it.leagueCore?.apiSportsLeague = null }
-            leagueApiSportsRepository.deleteAll(providerLeagues)
+            leagueApiSportsRepository.deleteAll(leagueApiSportsRepository.findAll())
             em.flush()
             em.clear()
             leagueSeasonCoreRepository.deleteAll()

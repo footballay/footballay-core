@@ -33,6 +33,8 @@ public class User extends BaseDateAuditEntity {
     private boolean enabled;
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private Set<Authority> authorities;
+    // 선호 설정의 cascade/orphanRemoval 책임이 있어 이번 역방향 제거 범위에서 제외합니다.
+    // LAZY여도 연관 존재 확인 SELECT가 발생할 수 있습니다.
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private PreferenceKey preferenceKey;
 

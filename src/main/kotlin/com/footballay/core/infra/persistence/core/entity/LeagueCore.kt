@@ -1,7 +1,6 @@
 package com.footballay.core.infra.persistence.core.entity
 
 import com.footballay.core.domain.league.MatchCollect
-import com.footballay.core.infra.persistence.apisports.entity.LeagueApiSports
 import jakarta.persistence.*
 
 /**
@@ -37,8 +36,6 @@ data class LeagueCore(
         orphanRemoval = true,
     )
     var leagueTeams: MutableSet<LeagueTeamCore> = mutableSetOf(),
-    @OneToOne(mappedBy = "leagueCore", fetch = FetchType.LAZY)
-    var apiSportsLeague: LeagueApiSports? = null,
 ) {
     fun addTeam(team: TeamCore) {
         val existingRelation = leagueTeams.any { it.team?.id == team.id }

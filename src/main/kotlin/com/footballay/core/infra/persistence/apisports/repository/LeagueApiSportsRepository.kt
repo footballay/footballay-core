@@ -9,6 +9,12 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface LeagueApiSportsRepository : JpaRepository<LeagueApiSports, Long> {
+    @Query("SELECT a FROM LeagueApiSports a JOIN FETCH a.leagueCore c WHERE c.available = true")
+    fun findByAvailableCore(): List<LeagueApiSports>
+
+    @Query("SELECT a FROM LeagueApiSports a JOIN FETCH a.leagueCore c WHERE c.id IN :coreIds")
+    fun findByLeagueCoreIds(@Param("coreIds") coreIds: Collection<Long>): List<LeagueApiSports>
+
     // findAllByApiIdIn
     fun findAllByApiIdIn(apiIds: List<Long>): List<LeagueApiSports>
 

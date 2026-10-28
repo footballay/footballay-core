@@ -522,9 +522,7 @@ class FixtureApiSportsWithCoreSyncerIntegrationTest {
 
     private fun clearAllTestData() {
         TransactionTemplate(transactionManager).executeWithoutResult {
-            // fetch된 역참조가 삭제된 provider를 계속 가리키지 않도록 양쪽을 정리합니다.
             val fixtures = fixtureApiSportsRepository.findAll()
-            fixtures.forEach { it.core?.apiSports = null }
             fixtureApiSportsRepository.deleteAll(fixtures)
             em.flush()
             em.clear()

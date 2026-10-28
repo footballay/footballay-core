@@ -7,6 +7,7 @@ import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.read.AvailableFixtureJobInput
 import com.footballay.core.infra.persistence.core.read.FixtureScheduleReadRow
+import com.footballay.core.infra.persistence.core.read.FixtureCoreAndApiSports
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -16,14 +17,27 @@ import java.time.Instant
 
 @Repository
 interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
-    // 운영 조회: 사용자·관리자 응답 및 수집/Quartz 처리.
+    /** ApiSports 연결이 없는 Core도 포함하며, 연결된 Provider는 같은 트랜잭션에서 사용할 수 있도록 함께 조회합니다. */
+    @Query(
+        """
+        SELECT new com.footballay.core.infra.persistence.core.read.FixtureCoreAndApiSports(f, fas)
+        FROM FixtureCore f
+        JOIN FETCH f.leagueSeason ls
+        JOIN FETCH ls.league
+        LEFT JOIN FixtureApiSports fas ON fas.core = f
+        WHERE f.uid = :fixtureUid
+        """,
+    )
+    fun findWithApiSportsByUid(@Param("fixtureUid") fixtureUid: String): FixtureCoreAndApiSports?
+
+    /** 관리자 일정 응답에 필요한 경기와 선택적인 Provider·홈/원정 팀 연결을 함께 조회합니다. */
     @Query(
         """
         SELECT new com.footballay.core.infra.persistence.core.read.AdminFixtureTeamsRow(f, fas, ht, ha, at, aa)
         FROM FixtureCore f
         JOIN f.leagueSeason ls
         JOIN ls.league l
-        LEFT JOIN f.apiSports fas
+        LEFT JOIN FixtureApiSports fas ON fas.core = f
         LEFT JOIN f.homeTeam ht
         LEFT JOIN f.awayTeam at
         LEFT JOIN TeamApiSports ha ON ha.teamCore = ht
@@ -39,7 +53,7 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         @Param("endExclusive") endExclusive: Instant,
     ): List<AdminFixtureTeamsRow>
 
-    // 성능 개선: 전체 available 범위는 유지하고 job 계산에 쓰지 않는 연관 엔티티는 로드하지 않습니다.
+    /** 시즌·기간 제한 없이 리그의 available 경기에서 Job 계산에 필요한 값만 조회합니다. */
     @Query(
         """
         SELECT new com.footballay.core.infra.persistence.core.read.AvailableFixtureJobInput(
@@ -53,8 +67,7 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     )
     fun findAvailableJobInputsByLeagueUid(@Param("leagueUid") leagueUid: String): List<AvailableFixtureJobInput>
 
-    // 사용자 경기 일정 화면용 projection입니다. Quartz job 등록·진단 조회가 아닙니다.
-    // 팀·로고·라운드·상태·점수를 응답에 사용하며, owning FK JOIN으로 필요한 값만 읽습니다.
+    /** 사용자 경기 일정 응답에 필요한 팀·로고·라운드·상태·점수를 스칼라 값으로 조회합니다. */
     @Query(
         """
         SELECT new com.footballay.core.infra.persistence.core.read.FixtureScheduleReadRow(
@@ -66,7 +79,7 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         FROM LeagueSeasonCore ls
         JOIN ls.league l
         JOIN FixtureCore f ON f.leagueSeason = ls
-        JOIN f.apiSports fas
+        JOIN FixtureApiSports fas ON fas.core = f
         LEFT JOIN f.homeTeam ht
         LEFT JOIN f.awayTeam at
         LEFT JOIN TeamApiSports homeApi ON homeApi.teamCore = ht
@@ -202,7 +215,7 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         FROM LeagueSeasonCore ls
         JOIN ls.league l
         JOIN FixtureCore f ON f.leagueSeason = ls
-        JOIN f.apiSports fas
+        JOIN FixtureApiSports fas ON fas.core = f
         WHERE l.uid = :leagueUid
           AND f.kickoff >= :from
     """,
@@ -221,7 +234,7 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         FROM LeagueSeasonCore ls
         JOIN ls.league l
         JOIN FixtureCore f ON f.leagueSeason = ls
-        JOIN f.apiSports fas
+        JOIN FixtureApiSports fas ON fas.core = f
         WHERE l.uid = :leagueUid
           AND f.kickoff < :before
     """,
@@ -231,12 +244,10 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         @Param("before") before: Instant,
     ): Instant?
 
-    // Mock 리소스 정리: 실제 관리자 Mock 처리에서 사용하는 쿼리입니다.
-    // 시즌 전환: Mock 리그 삭제 전에 시즌을 통한 경기 잔존 여부를 확인합니다.
+    /** Mock 리그 삭제 전에 소속 시즌에 경기가 남아 있는지 확인합니다. */
     fun existsByLeagueSeason_League(league: LeagueCore): Boolean
 
-    // 테스트·SQL 캡처/벤치마크 비교용. 현재 src/main 직접 호출은 없습니다.
-    // 과거 엔티티 조회 계약을 보존하며 운영 조회에는 위의 전용 메서드를 사용합니다.
+    /** SQL 캡처·벤치마크 비교용 available 경기 엔티티 조회입니다. 운영 Job 계산은 전용 projection을 사용합니다. */
     @Query(
         """
         SELECT f
@@ -311,7 +322,6 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         FROM LeagueSeasonCore ls
         JOIN ls.league l
         JOIN FixtureCore f ON f.leagueSeason = ls
-        LEFT JOIN FETCH f.apiSports AS fas
         LEFT JOIN FETCH f.homeTeam AS ht    
         LEFT JOIN FETCH f.awayTeam AS at
         WHERE l.uid = :leagueUid
@@ -329,8 +339,7 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     /**
      * 특정 리그(UID 기반)의 킥오프 시간 범위 내 ApiSports-backed Fixture들을 조회합니다.
      *
-     * 이전 Public/Desktop 엔티티 조회의 비교·회귀 테스트용입니다. 현재 운영 조회는 projection을 사용하며,
-     * FixtureApiSports 연결이 있는 FixtureCore 만 대상으로 합니다.
+     * 회귀 테스트·SQL 캡처용이며, 운영 일정 조회는 전용 projection을 사용합니다.
      */
     @Query(
         """
@@ -338,7 +347,7 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         FROM LeagueSeasonCore ls
         JOIN ls.league l
         JOIN FixtureCore f ON f.leagueSeason = ls
-        JOIN FETCH f.apiSports AS fas
+        JOIN FixtureApiSports fas ON fas.core = f
         LEFT JOIN FETCH f.homeTeam AS ht
         LEFT JOIN FETCH f.awayTeam AS at
         WHERE l.uid = :leagueUid

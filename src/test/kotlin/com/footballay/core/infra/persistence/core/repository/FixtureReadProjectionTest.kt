@@ -73,7 +73,7 @@ class FixtureReadProjectionTest {
         em.flush(); em.clear()
         val expected = repository.findAdminFixturesWithTeamsInRange(league.uid, from, to).filter { it.backbone != null }.map { row ->
             val f = row.fixture
-            mapper.toFixtureModel(f, requireNotNull(f.apiSports), f.homeTeam to f.awayTeam,
+            mapper.toFixtureModel(f, requireNotNull(row.backbone), f.homeTeam to f.awayTeam,
                 row.homeBackbone to row.awayBackbone, league.uid)
         }
         em.clear(); inspector.clear()

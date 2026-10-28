@@ -4,7 +4,6 @@ import com.footballay.core.common.result.DomainFail
 import com.footballay.core.common.result.DomainResult
 import com.footballay.core.domain.fixture.FixtureStatusCode
 import com.footballay.core.domain.model.FixtureModel
-import com.footballay.core.infra.facade.AvailableFixtureFacade
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueTeamCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
@@ -29,7 +28,7 @@ class MockFixtureService(
     private val mockLeagueRepository: MockBackboneLeagueRepository,
     private val mockTeamRepository: MockBackboneTeamRepository,
     private val mockFixtureRepository: MockBackboneFixtureRepository,
-    private val availableFixtureFacade: AvailableFixtureFacade,
+    private val coreCleanupService: MockCoreCleanupService,
     private val modelMapper: MockBackboneModelMapper,
     private val uidFactory: MockUidFactory,
     @Suppress("SpringJavaInjectionPointsAutowiringInspection")
@@ -100,15 +99,8 @@ class MockFixtureService(
         val result = toModel(mockFixture)
         val fixture = mockFixture.fixture
 
-        if (fixture.available) {
-            val availableResult = availableFixtureFacade.removeAvailableFixtureByCoreUid(fixture.uid)
-            if (availableResult is DomainResult.Fail) {
-                return DomainResult.Fail(availableResult.error)
-            }
-        }
-
         mockFixtureRepository.delete(mockFixture)
-        fixtureCoreRepository.delete(fixture)
+        coreCleanupService.deleteFixtureCoreIfMockOnly(fixture)
 
         return DomainResult.Success(result)
     }

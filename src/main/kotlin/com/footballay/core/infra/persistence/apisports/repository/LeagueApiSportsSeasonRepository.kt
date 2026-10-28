@@ -9,6 +9,8 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface LeagueApiSportsSeasonRepository : JpaRepository<LeagueApiSportsSeason, Long> {
+    fun existsByLeagueSeasonCore_League_Id(leagueId: Long): Boolean
+
     fun findAllByLeagueApiSports(leagueApiSports: LeagueApiSports): List<LeagueApiSportsSeason>
 
     @Query(

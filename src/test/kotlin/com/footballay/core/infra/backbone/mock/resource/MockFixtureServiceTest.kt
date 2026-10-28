@@ -3,7 +3,6 @@ package com.footballay.core.infra.backbone.mock.resource
 import com.footballay.core.common.result.DomainFail
 import com.footballay.core.common.result.DomainResult
 import com.footballay.core.domain.fixture.FixtureStatusCode
-import com.footballay.core.infra.facade.AvailableFixtureFacade
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
@@ -29,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
+import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -57,7 +57,7 @@ class MockFixtureServiceTest {
     private lateinit var mockFixtureRepository: MockBackboneFixtureRepository
 
     @Mock
-    private lateinit var availableFixtureFacade: AvailableFixtureFacade
+    private lateinit var coreCleanupService: MockCoreCleanupService
 
     private val now = Instant.parse("2026-05-29T10:00:00Z")
     private lateinit var service: MockFixtureService
@@ -72,7 +72,7 @@ class MockFixtureServiceTest {
                 mockLeagueRepository = mockLeagueRepository,
                 mockTeamRepository = mockTeamRepository,
                 mockFixtureRepository = mockFixtureRepository,
-                availableFixtureFacade = availableFixtureFacade,
+                coreCleanupService = coreCleanupService,
                 modelMapper = MockBackboneModelMapper(),
                 uidFactory = MockUidFactory(Clock.fixed(now, ZoneOffset.UTC)),
                 clock = Clock.fixed(now, ZoneOffset.UTC),
@@ -182,18 +182,18 @@ class MockFixtureServiceTest {
     }
 
     @Test
-    fun `deleteFixture disables available fixture before hard delete`() {
+    fun deleteFixtureDelegatesCoreCleanupAfterMockDeletion() {
         val fixture = fixture(available = true)
         val mockFixture = mockFixture(fixture)
         whenever(mockFixtureRepository.findByFixtureCoreUid("fixture-1")).thenReturn(mockFixture)
-        whenever(availableFixtureFacade.removeAvailableFixtureByCoreUid("fixture-1")).thenReturn(DomainResult.Success("fixture-1"))
 
         val result = service.deleteFixture("fixture-1")
 
         assertThat(result).isInstanceOf(DomainResult.Success::class.java)
-        verify(availableFixtureFacade).removeAvailableFixtureByCoreUid("fixture-1")
-        verify(mockFixtureRepository).delete(mockFixture)
-        verify(fixtureCoreRepository).delete(fixture)
+        inOrder(mockFixtureRepository, coreCleanupService) {
+            verify(mockFixtureRepository).delete(mockFixture)
+            verify(coreCleanupService).deleteFixtureCoreIfMockOnly(fixture)
+        }
     }
 
     private fun league(): LeagueCore =

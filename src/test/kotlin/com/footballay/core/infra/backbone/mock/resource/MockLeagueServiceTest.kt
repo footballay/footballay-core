@@ -22,6 +22,7 @@ import java.time.ZoneOffset
 /** Mock 기본 시즌 생성과 자식부터 삭제하는 순서를 검증합니다. */
 @ExtendWith(MockitoExtension::class)
 class MockLeagueServiceTest {
+    @Mock private lateinit var cleanup: MockCoreCleanupService
     @Mock private lateinit var leagues: LeagueCoreRepository
     @Mock private lateinit var markers: MockBackboneLeagueRepository
     @Mock private lateinit var seasons: LeagueSeasonCoreRepository
@@ -30,6 +31,7 @@ class MockLeagueServiceTest {
     private val clock = Clock.fixed(Instant.parse("2025-12-31T23:59:59Z"), ZoneOffset.ofHours(9))
 
     private fun service() = MockLeagueService(
+        coreCleanupService = cleanup,
         leagueCoreRepository = leagues, mockLeagueRepository = markers,
         leagueSeasonCoreRepository = seasons, fixtureCoreRepository = fixtures,
         modelMapper = MockBackboneModelMapper(), uidFactory = MockUidFactory(clock), clock = clock,
@@ -65,21 +67,17 @@ class MockLeagueServiceTest {
     }
 
     @Test
-    @DisplayName("시즌을 삭제한 다음 리그를 삭제한다")
-    fun deleteSeasonsBeforeLeague() {
+    @DisplayName("Mock 삭제 후 Core 정리 서비스에 위임한다")
+    fun delegateCoreCleanupAfterMockDeletion() {
         val league = LeagueCore(id = 1L, uid = "mock", name = "Mock")
         val marker = MockBackboneLeague(mockUid = "marker", league = league, createdAt = clock.instant())
-        val season = LeagueSeasonCore(league = league, seasonYear = 2025)
         whenever(markers.findByLeagueCoreUid("mock")).thenReturn(marker)
-        whenever(seasons.findAllByLeague(league)).thenReturn(listOf(season))
 
         assertThat(service().deleteLeague("mock")).isInstanceOf(DomainResult.Success::class.java)
 
-        inOrder(seasons, markers, leagues) {
-            verify(seasons).deleteAll(listOf(season))
-            verify(seasons).flush()
+        inOrder(markers, cleanup) {
             verify(markers).delete(marker)
-            verify(leagues).delete(league)
+            verify(cleanup).deleteLeagueCoreIfMockOnly(league)
         }
     }
 }

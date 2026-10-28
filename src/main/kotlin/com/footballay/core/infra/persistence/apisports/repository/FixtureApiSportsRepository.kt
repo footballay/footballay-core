@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
+    fun existsByCore_Id(coreId: Long): Boolean
+
     @Query(
         """
         SELECT new com.footballay.core.infra.persistence.apisports.read.FixtureInfoTeamsRow(f, c, ht, ha, at, aa)

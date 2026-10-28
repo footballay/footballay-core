@@ -9,6 +9,8 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface LeagueApiSportsRepository : JpaRepository<LeagueApiSports, Long> {
+    fun existsByLeagueCore_Id(coreId: Long): Boolean
+
     @Query("SELECT a FROM LeagueApiSports a JOIN FETCH a.leagueCore c WHERE c.available = true")
     fun findByAvailableCore(): List<LeagueApiSports>
 

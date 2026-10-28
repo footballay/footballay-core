@@ -1,5 +1,8 @@
 package com.footballay.core.infra.apisports.match
 
+import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
+import com.footballay.core.infra.persistence.core.entity.TeamCore
+import com.footballay.core.infra.persistence.apisports.repository.TeamApiSportsRepository
 import com.footballay.core.infra.dispatcher.match.MatchDataSyncDispatcher
 import com.footballay.core.infra.facade.ApiSportsBackboneSyncFacade
 import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
@@ -48,6 +51,7 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional
 @DisplayName("Match 데이터 저장 전체 흐름 통합 테스트")
 class MatchDataSyncIntegrationTest {
+    @Autowired private lateinit var teamApiSportsRepository: TeamApiSportsRepository
     private val log = logger()
 
     @Autowired
@@ -118,10 +122,10 @@ class MatchDataSyncIntegrationTest {
         log.info("[5/5] 사전 준비 검증 완료")
         log.info("  - Fixture UID: ${verifyFixture.core?.uid}")
         log.info(
-            "  - Home Team: ${verifyFixture.core?.homeTeam?.name} (API ID: ${verifyFixture.core?.homeTeam?.teamApiSports?.apiId})",
+            "  - Home Team: ${verifyFixture.core?.homeTeam?.name} (API ID: ${providerFor(verifyFixture.core?.homeTeam)?.apiId})",
         )
         log.info(
-            "  - Away Team: ${verifyFixture.core?.awayTeam?.name} (API ID: ${verifyFixture.core?.awayTeam?.teamApiSports?.apiId})",
+            "  - Away Team: ${verifyFixture.core?.awayTeam?.name} (API ID: ${providerFor(verifyFixture.core?.awayTeam)?.apiId})",
         )
 
         log.info("========================================")
@@ -465,4 +469,6 @@ class MatchDataSyncIntegrationTest {
         em.flush()
         em.clear()
     }
+    private fun providerFor(core: TeamCore?): TeamApiSports? =
+        core?.let { teamApiSportsRepository.findTeamApiSportsInTeamCore(listOf(it)).singleOrNull() }
 }

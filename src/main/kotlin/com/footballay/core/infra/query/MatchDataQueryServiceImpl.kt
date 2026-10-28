@@ -1,5 +1,8 @@
 package com.footballay.core.infra.query
 
+import com.footballay.core.infra.persistence.apisports.read.FixtureInfoTeamsRow
+import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
+import com.footballay.core.infra.persistence.core.entity.TeamCore
 import com.footballay.core.common.result.DomainFail
 import com.footballay.core.common.result.DomainResult
 import com.footballay.core.domain.model.match.*
@@ -38,14 +41,14 @@ class MatchDataQueryServiceImpl(
      * @return DomainResult<FixtureInfoModel>
      */
     override fun getFixtureInfo(fixtureUid: String, zoneId: ZoneId): DomainResult<FixtureInfoModel, DomainFail> {
-        val fixture =
-            fixtureApiSportsRepository.findByCoreUid(fixtureUid)
+        val fixtureWithTeams =
+            fixtureApiSportsRepository.findInfoWithTeamsByCoreUid(fixtureUid)
                 ?: return DomainResult.Fail(DomainFail.NotFound("Fixture", fixtureUid))
 
         log.debug("Fetched fixture info for uid: {}", fixtureUid)
 
         return try {
-            val model = toFixtureInfoModel(fixture, zoneId)
+            val model = toFixtureInfoModel(fixtureWithTeams, zoneId)
             DomainResult.Success(model)
         } catch (e: Exception) {
             log.error("Error converting fixture to domain model for uid: {}", fixtureUid, e)
@@ -182,14 +185,22 @@ class MatchDataQueryServiceImpl(
     // Entity → Domain Model 변환 메서드
     // ===========================
 
-    private fun toFixtureInfoModel(fixture: FixtureApiSports, zoneId: ZoneId): FixtureInfoModel {
-        val core = fixture.core ?: throw IllegalArgumentException("FixtureCore is null")
+    private data class TeamCoreAndBackbone(
+        val core: TeamCore?,
+        val backbone: TeamApiSports?,
+    )
+
+    private fun toFixtureInfoModel(row: FixtureInfoTeamsRow, zoneId: ZoneId): FixtureInfoModel {
+        val fixture = row.fixture
+        val core = row.core
         val season = fixture.season ?: throw IllegalArgumentException("Season is null")
         val league = season.leagueApiSports ?: throw IllegalArgumentException("League is null")
         val leagueCore = league.leagueCore ?: throw IllegalArgumentException("LeagueCore is null")
 
-        val homeTeamCore = core.homeTeam
-        val awayTeamCore = core.awayTeam
+        val home = TeamCoreAndBackbone(row.homeCore, row.homeBackbone)
+        val away = TeamCoreAndBackbone(row.awayCore, row.awayBackbone)
+        val homeTeamCore = home.core
+        val awayTeamCore = away.core
 
         val dateStr =
             fixture.date
@@ -213,7 +224,7 @@ class MatchDataQueryServiceImpl(
                     FixtureInfoModel.TeamInfo(
                         id = 0L, // Deprecated: PK 노출 방지
                         name = teamCore.name,
-                        logo = teamCore.teamApiSports?.logo,
+                        logo = home.backbone?.logo,
                         teamUid = teamCore.uid,
                         playerColor =
                             fixture.homeTeam?.playerColor?.let {
@@ -226,7 +237,7 @@ class MatchDataQueryServiceImpl(
                     FixtureInfoModel.TeamInfo(
                         id = 0L, // Deprecated: PK 노출 방지
                         name = teamCore.name,
-                        logo = teamCore.teamApiSports?.logo,
+                        logo = away.backbone?.logo,
                         teamUid = teamCore.uid,
                         playerColor =
                             fixture.awayTeam?.playerColor?.let {

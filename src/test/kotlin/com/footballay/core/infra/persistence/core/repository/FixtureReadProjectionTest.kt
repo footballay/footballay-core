@@ -71,9 +71,10 @@ class FixtureReadProjectionTest {
         }
         fixture("core-only", season, from, true)
         em.flush(); em.clear()
-        val expected = repository.findApiSportsBackedFixturesByLeagueUidInKickoffRange(league.uid, from, to).map { f ->
+        val expected = repository.findAdminFixturesWithTeamsInRange(league.uid, from, to).filter { it.backbone != null }.map { row ->
+            val f = row.fixture
             mapper.toFixtureModel(f, requireNotNull(f.apiSports), f.homeTeam to f.awayTeam,
-                f.homeTeam?.teamApiSports to f.awayTeam?.teamApiSports, league.uid)
+                row.homeBackbone to row.awayBackbone, league.uid)
         }
         em.clear(); inspector.clear()
 

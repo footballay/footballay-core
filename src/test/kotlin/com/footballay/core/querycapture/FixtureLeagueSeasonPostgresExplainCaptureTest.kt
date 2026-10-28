@@ -50,7 +50,7 @@ class FixtureLeagueSeasonPostgresExplainCaptureTest {
     private val fixtureUid = "bench-fixture-000000000001"
     private val from = Instant.parse("2026-08-01T00:00:00Z")
     private val to = Instant.parse("2026-09-01T00:00:00Z")
-    private val output = Path.of("plan", "fixture-league-season", "postgres-explain", "captures")
+    private val output = Path.of("plan", "00-done", "fixture-league-season-migration", "work", "postgres-explain", "captures")
 
     @Test
     @Transactional(readOnly = true)

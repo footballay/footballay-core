@@ -31,9 +31,38 @@ import java.time.ZoneId
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@Import(MatchEntityGenerator::class)
+@Import(MatchEntityGenerator::class, com.footballay.core.querycapture.SqlCaptureTestConfiguration::class)
 @Transactional
 class MatchDataQueryServiceImplTest {
+    @Autowired private lateinit var inspector: com.footballay.core.querycapture.SqlCaptureStatementInspector
+
+    @Test
+    fun fixtureInfoLoadsCoreLinkedProvidersWithoutInverseLookups() {
+        val entities = entityGenerator.createCompleteMatchEntities()
+        entityManager.flush()
+        entityManager.clear()
+        inspector.clear()
+
+        assertThat(queryService.getFixtureInfo(entities.fixtureCore.uid, ZoneId.of("UTC")))
+            .isInstanceOf(DomainResult.Success::class.java)
+        assertThat(inspector.captured().filter { it.contains("where") && Regex("where .*team_core_id=\\?").containsMatchIn(it) })
+            .isEmpty()
+        assertThat(inspector.captured().count { it.contains("join team_apisports") }).isGreaterThanOrEqualTo(1)
+    }
+
+    @Test
+    fun fixtureInfoPreservesCoreTeamWithoutProvider() {
+        val entities = entityGenerator.createCompleteMatchEntities()
+        val home = com.footballay.core.infra.persistence.core.entity.TeamCore(uid = "core-only-home", name = "Core Home")
+        entityManager.persist(home)
+        entities.fixtureCore.homeTeam = home
+        entityManager.flush()
+        entityManager.clear()
+
+        val result = queryService.getFixtureInfo(entities.fixtureCore.uid, ZoneId.of("UTC")) as DomainResult.Success
+        assertThat(result.value.home?.teamUid).isEqualTo(home.uid)
+        assertThat(result.value.home?.logo).isNull()
+    }
     @Autowired
     private lateinit var queryService: MatchDataQueryServiceImpl
 

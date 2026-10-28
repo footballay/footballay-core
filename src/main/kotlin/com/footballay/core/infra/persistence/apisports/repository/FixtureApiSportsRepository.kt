@@ -1,5 +1,6 @@
 package com.footballay.core.infra.persistence.apisports.repository
 
+import com.footballay.core.infra.persistence.apisports.read.FixtureInfoTeamsRow
 import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
@@ -9,6 +10,20 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
+    @Query(
+        """
+        SELECT new com.footballay.core.infra.persistence.apisports.read.FixtureInfoTeamsRow(f, c, ht, ha, at, aa)
+        FROM FixtureApiSports f
+        JOIN f.core c
+        LEFT JOIN c.homeTeam ht
+        LEFT JOIN c.awayTeam at
+        LEFT JOIN TeamApiSports ha ON ha.teamCore = ht
+        LEFT JOIN TeamApiSports aa ON aa.teamCore = at
+        WHERE c.uid = :coreUid
+        """,
+    )
+    fun findInfoWithTeamsByCoreUid(@Param("coreUid") coreUid: String): FixtureInfoTeamsRow?
+
     @EntityGraph(attributePaths = ["core"])
     fun findByCoreUid(coreUid: String): FixtureApiSports?
 

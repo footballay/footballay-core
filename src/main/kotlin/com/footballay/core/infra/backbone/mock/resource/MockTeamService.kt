@@ -14,6 +14,7 @@ import java.time.Instant
 
 @Service
 class MockTeamService(
+    private val coreCleanupService: MockCoreCleanupService,
     private val teamCoreRepository: TeamCoreRepository,
     private val mockTeamRepository: MockBackboneTeamRepository,
     private val modelMapper: MockBackboneModelMapper,
@@ -57,11 +58,12 @@ class MockTeamService(
         val result = toModel(mockTeam)
 
         mockTeamRepository.delete(mockTeam)
-        teamCoreRepository.delete(mockTeam.team)
+        coreCleanupService.deleteTeamCoreIfMockOnly(mockTeam.team)
 
         return DomainResult.Success(result)
     }
 
     fun toModel(mockTeam: MockBackboneTeam): TeamModel =
         modelMapper.toTeamModel(mockTeam.team)
+
 }

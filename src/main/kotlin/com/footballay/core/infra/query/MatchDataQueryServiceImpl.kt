@@ -1,6 +1,7 @@
 package com.footballay.core.infra.query
 
 import com.footballay.core.infra.persistence.apisports.read.FixtureInfoTeamsRow
+import com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow
 import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
 import com.footballay.core.infra.persistence.core.entity.TeamCore
 import com.footballay.core.common.result.DomainFail
@@ -9,6 +10,7 @@ import com.footballay.core.domain.model.match.*
 import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchEvent
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayer
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayerStatistics
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
 import com.footballay.core.infra.persistence.apisports.repository.FixtureApiSportsRepository
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchEventRepository
@@ -162,13 +164,13 @@ class MatchDataQueryServiceImpl(
                 ?: return DomainResult.Fail(DomainFail.NotFound("Fixture", fixtureUid))
 
         // 홈/원정 팀 통계 조회
-        val homeTeam = fixtureApiSportsRepository.findFixtureHomeTeamLineupAndStatsByUid(fixtureUid)
-        val awayTeam = fixtureApiSportsRepository.findFixtureAwayTeamLineupAndStatsByUid(fixtureUid)
+        val homeRows = fixtureApiSportsRepository.findFixtureHomeTeamLineupAndStatsByUid(fixtureUid)
+        val awayRows = fixtureApiSportsRepository.findFixtureAwayTeamLineupAndStatsByUid(fixtureUid)
 
         log.debug("Fetched statistics for fixture uid: {}", fixtureUid)
 
         return try {
-            val model = toFixtureStatisticsModel(fixtureUid, fixture, homeTeam, awayTeam)
+            val model = toFixtureStatisticsModel(fixtureUid, fixture, homeRows, awayRows)
             DomainResult.Success(model)
         } catch (e: Exception) {
             log.error("Error converting fixture statistics for uid: {}", fixtureUid, e)
@@ -391,8 +393,8 @@ class MatchDataQueryServiceImpl(
     private fun toFixtureStatisticsModel(
         fixtureUid: String,
         fixture: FixtureApiSports,
-        homeTeamFixture: FixtureApiSports?,
-        awayTeamFixture: FixtureApiSports?,
+        homeRows: List<FixturePlayerStatisticsRow>,
+        awayRows: List<FixturePlayerStatisticsRow>,
     ): FixtureStatisticsModel {
         val status = fixture.status
 
@@ -403,15 +405,21 @@ class MatchDataQueryServiceImpl(
                     elapsed = status?.elapsed,
                     status = status?.shortStatus ?: "",
                 ),
-            home = homeTeamFixture?.homeTeam?.let { toTeamWithStatistics(it) },
-            away = awayTeamFixture?.awayTeam?.let { toTeamWithStatistics(it) },
+            home = homeRows.firstOrNull()?.fixture?.homeTeam?.let { toTeamWithStatistics(it, homeRows) },
+            away = awayRows.firstOrNull()?.fixture?.awayTeam?.let { toTeamWithStatistics(it, awayRows) },
         )
     }
 
-    private fun toTeamWithStatistics(matchTeam: ApiSportsMatchTeam): FixtureStatisticsModel.TeamWithStatistics {
+    private fun toTeamWithStatistics(
+        matchTeam: ApiSportsMatchTeam,
+        rows: List<FixturePlayerStatisticsRow>,
+    ): FixtureStatisticsModel.TeamWithStatistics {
         val teamApiSports = matchTeam.teamApiSports
         val teamCore = teamApiSports?.teamCore
         val teamStats = matchTeam.teamStatistics
+        val playerStatsByUid = rows.mapNotNull { row ->
+            if (row.player != null && row.statistics != null) row.player.matchPlayerUid to row.statistics else null
+        }.toMap()
 
         return FixtureStatisticsModel.TeamWithStatistics(
             team =
@@ -453,12 +461,15 @@ class MatchDataQueryServiceImpl(
                         } ?: emptyList(),
                 ),
             playerStatistics =
-                matchTeam.players.mapNotNull { toPlayerWithStatistics(it) },
+                matchTeam.players.mapNotNull { toPlayerWithStatistics(it, playerStatsByUid) },
         )
     }
 
-    private fun toPlayerWithStatistics(matchPlayer: ApiSportsMatchPlayer): FixtureStatisticsModel.PlayerWithStatistics? {
-        val playerStats = matchPlayer.statistics ?: return null
+    private fun toPlayerWithStatistics(
+        matchPlayer: ApiSportsMatchPlayer,
+        playerStatsByUid: Map<String, ApiSportsMatchPlayerStatistics>,
+    ): FixtureStatisticsModel.PlayerWithStatistics? {
+        val playerStats = playerStatsByUid[matchPlayer.matchPlayerUid] ?: return null
         val playerApiSports = matchPlayer.playerApiSports
         val playerCore = playerApiSports?.playerCore
 

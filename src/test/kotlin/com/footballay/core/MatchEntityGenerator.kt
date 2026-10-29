@@ -506,15 +506,7 @@ class MatchEntityGenerator(
                         ),
                     )
 
-                // 양방향 연관관계 설정
-                matchPlayer.statistics = playerStats
-
                 playerStats
-            }.also {
-                // 모든 MatchPlayer 저장 (연관관계 업데이트)
-                matchPlayers.forEach { player ->
-                    apiSportsMatchPlayerRepository.save(player)
-                }
             }
     }
 }

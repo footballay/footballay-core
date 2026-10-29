@@ -220,6 +220,21 @@ class MatchDataQueryServiceImplTest {
     }
 
     @Test
+    fun fixtureStatisticsLoadsPlayerStatsInTeamQueries() {
+        val entities = entityGenerator.createCompleteMatchEntities()
+        entityManager.flush()
+        entityManager.clear()
+        inspector.clear()
+
+        val result = queryService.getFixtureStatistics(entities.fixtureCore.uid)
+
+        assertThat(result).isInstanceOf(DomainResult.Success::class.java)
+        val statQueries = inspector.captured().filter { "apisports_match_player_stat" in it }
+        assertThat(statQueries).hasSize(2)
+        assertThat(statQueries).allMatch { "join apisports_match_player_stat" in it }
+    }
+
+    @Test
     fun `getFixtureInfo - 존재하지 않는 UID DomainFail 반환`() {
         // Given
         val invalidUid = "invaliduid99999"

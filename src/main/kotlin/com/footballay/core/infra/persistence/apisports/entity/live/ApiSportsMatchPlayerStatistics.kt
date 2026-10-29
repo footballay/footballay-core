@@ -1,14 +1,17 @@
 package com.footballay.core.infra.persistence.apisports.entity.live
 
 import jakarta.persistence.*
+import org.hibernate.annotations.OnDelete
+import org.hibernate.annotations.OnDeleteAction
 
 @Entity
 @Table(name = "apisports_match_player_stat")
 class ApiSportsMatchPlayerStatistics(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
-    @OneToOne(fetch = FetchType.LAZY, cascade = [CascadeType.ALL])
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "match_player_id", nullable = true)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     var matchPlayer: ApiSportsMatchPlayer? = null,
     // Games statistics
     @Column(name = "minutes_played")

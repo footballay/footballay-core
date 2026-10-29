@@ -6,6 +6,8 @@ import com.footballay.core.infra.persistence.apisports.repository.TeamApiSportsR
 import com.footballay.core.infra.dispatcher.match.MatchDataSyncDispatcher
 import com.footballay.core.infra.facade.ApiSportsBackboneSyncFacade
 import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayerStatistics
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
 import com.footballay.core.infra.persistence.apisports.repository.FixtureApiSportsRepository
 import com.footballay.core.logger
 import jakarta.persistence.EntityManager
@@ -315,16 +317,17 @@ class MatchDataSyncIntegrationTest {
     private fun verifyPlayerStats(fixture: FixtureApiSports) {
         val homeTeam = fixture.homeTeam!!
         val homePlayers = homeTeam.players
+        val statsByPlayerUid = statsOfTeam(homeTeam).associateBy { it.matchPlayer!!.matchPlayerUid }
 
         // PlayerStats 존재 확인
-        val playersWithStats = homePlayers.filter { it.statistics != null }
+        val playersWithStats = homePlayers.filter { it.matchPlayerUid in statsByPlayerUid }
         assertThat(playersWithStats).isNotEmpty
         log.info("  ✓ 통계 있는 선수: ${playersWithStats.size}/${homePlayers.size}명")
 
         // 특정 선수 통계 검증 (Bruno Fernandes - 주장)
         val brunoPlayer = homePlayers.find { it.name.contains("Bruno") || it.name.contains("Fernandes") }
         if (brunoPlayer != null) {
-            val brunoStats = brunoPlayer.statistics
+            val brunoStats = statsByPlayerUid[brunoPlayer.matchPlayerUid]
             assertThat(brunoStats).isNotNull
             assertThat(brunoStats?.isCaptain).isTrue()
             assertThat(brunoStats?.minutesPlayed).isNotNull
@@ -334,17 +337,23 @@ class MatchDataSyncIntegrationTest {
         }
 
         // 골키퍼 통계 검증
-        val goalkeeperStats = playersWithStats.find { it.position == "G" }?.statistics
+        val goalkeeperStats = playersWithStats.find { it.position == "G" }?.let { statsByPlayerUid[it.matchPlayerUid] }
         if (goalkeeperStats != null) {
             log.info("  ✓ 골키퍼 통계: 세이브 ${goalkeeperStats.saves}개, 실점 ${goalkeeperStats.goalsConceded}개")
         }
 
-        // MatchPlayer ↔ PlayerStats 양방향 연관관계 검증
+        // PlayerStats owning FK 검증
         playersWithStats.forEach { player ->
-            assertThat(player.statistics?.matchPlayer).isEqualTo(player)
+            assertThat(statsByPlayerUid[player.matchPlayerUid]?.matchPlayer).isEqualTo(player)
         }
-        log.info("  ✓ MatchPlayer ↔ PlayerStats 양방향 연관관계 정상")
+        log.info("  ✓ PlayerStats → MatchPlayer 연관관계 정상")
     }
+
+    private fun statsOfTeam(team: ApiSportsMatchTeam): List<ApiSportsMatchPlayerStatistics> =
+        em.createQuery(
+            "SELECT s FROM ApiSportsMatchPlayerStatistics s WHERE s.matchPlayer.matchTeam = :team",
+            ApiSportsMatchPlayerStatistics::class.java,
+        ).setParameter("team", team).resultList
 
     private fun verifyTeamStats(fixture: FixtureApiSports) {
         val homeTeam = fixture.homeTeam!!
@@ -416,11 +425,12 @@ class MatchDataSyncIntegrationTest {
         log.info("  ✓ MatchTeam ↔ MatchPlayer 양방향 연결 정상 (${homeTeam.players.size}명)")
 
         log.info("[3/4] MatchPlayer → PlayerStats 연관관계...")
-        val playersWithStats = homeTeam.players.filter { it.statistics != null }
+        val statsByPlayerUid = statsOfTeam(homeTeam).associateBy { it.matchPlayer!!.matchPlayerUid }
+        val playersWithStats = homeTeam.players.filter { it.matchPlayerUid in statsByPlayerUid }
         playersWithStats.forEach { player ->
-            assertThat(player.statistics?.matchPlayer).isEqualTo(player)
+            assertThat(statsByPlayerUid[player.matchPlayerUid]?.matchPlayer).isEqualTo(player)
         }
-        log.info("  ✓ MatchPlayer ↔ PlayerStats 양방향 연결 정상 (${playersWithStats.size}명)")
+        log.info("  ✓ PlayerStats → MatchPlayer 연결 정상 (${playersWithStats.size}명)")
 
         log.info("[4/4] MatchEvent → MatchPlayer 연관관계...")
         val eventsWithPlayer = fixture.events.filter { it.player != null }

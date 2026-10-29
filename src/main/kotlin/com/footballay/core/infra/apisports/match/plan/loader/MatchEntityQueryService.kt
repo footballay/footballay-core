@@ -1,7 +1,5 @@
 package com.footballay.core.infra.apisports.match.plan.loader
 
-import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
-import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
 
 /**
  * Live 경기 엔티티 조회를 담당하는 서비스
@@ -22,7 +20,7 @@ interface MatchEntityQueryService {
      *
      * Team Stats는 모든 Player 행에 중복되지만 트랜잭션 왕복 절약
      */
-    fun loadHomeTeamWithPlayersAndStats(fixtureApiId: Long): ApiSportsMatchTeam?
+    fun loadHomeTeamWithPlayersAndStats(fixtureApiId: Long): LoadedMatchTeam?
 
     /**
      * 2. Away Team + Team Statistics + Players + Player Statistics 조회
@@ -30,12 +28,12 @@ interface MatchEntityQueryService {
      * ApiSportsMatchTeam(away) + ApiSportsMatchTeamStatistics +
      * ApiSportsMatchPlayer[] + ApiSportsMatchPlayerStatistics[]
      */
-    fun loadAwayTeamWithPlayersAndStats(fixtureApiId: Long): ApiSportsMatchTeam?
+    fun loadAwayTeamWithPlayersAndStats(fixtureApiId: Long): LoadedMatchTeam?
 
     /**
      * 3. Fixture 핵심 데이터 + Events 조회 + fixtureCore
      *
      * FixtureApiSports + ApiSportsMatchEvent[] (player, assist 포함)
      */
-    fun loadFixtureWithEvents(fixtureApiId: Long): FixtureApiSports?
+    fun loadFixtureWithEvents(fixtureApiId: Long): LoadedMatchEvents?
 }

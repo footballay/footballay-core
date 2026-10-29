@@ -82,8 +82,6 @@ class ApiSportsMatchPlayer(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "match_team_id", nullable = true)
     var matchTeam: ApiSportsMatchTeam?,
-    @OneToOne(mappedBy = "matchPlayer", cascade = [CascadeType.ALL], optional = true)
-    var statistics: ApiSportsMatchPlayerStatistics? = null,
 ) {
     /**
      * JPA 엔티티 동등성: 자연 키 기반 비교

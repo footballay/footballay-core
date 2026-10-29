@@ -1,6 +1,8 @@
 package com.footballay.core.infra.persistence.apisports.repository
 
 import com.footballay.core.infra.persistence.apisports.read.FixtureInfoTeamsRow
+import com.footballay.core.infra.persistence.apisports.read.FixtureEventPlayerStatisticsRow
+import com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow
 import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
@@ -83,46 +85,53 @@ interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
 
     @Query(
         """
-        SELECT f FROM FixtureApiSports f 
+        SELECT new com.footballay.core.infra.persistence.apisports.read.FixtureEventPlayerStatisticsRow(f, ep, eps, ea, eas)
+        FROM FixtureApiSports f
         JOIN FETCH f.core c 
         JOIN FETCH f.season s 
         LEFT JOIN FETCH f.venue v 
         LEFT JOIN FETCH f.events e 
         LEFT JOIN FETCH e.matchTeam em
         LEFT JOIN FETCH e.player ep
+        LEFT JOIN FETCH ep.playerApiSports
         LEFT JOIN FETCH e.assist ea
+        LEFT JOIN FETCH ea.playerApiSports
+        LEFT JOIN ApiSportsMatchPlayerStatistics eps ON eps.matchPlayer = ep
+        LEFT JOIN ApiSportsMatchPlayerStatistics eas ON eas.matchPlayer = ea
         WHERE f.apiId = :fixtureApiId
     """,
     )
-    fun findEventsByFixtureApiId(fixtureApiId: Long): FixtureApiSports?
+    fun findEventsByFixtureApiId(fixtureApiId: Long): List<FixtureEventPlayerStatisticsRow>
 
     @Query(
         """
-        SELECT f FROM FixtureApiSports f 
+        SELECT new com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow(f, hp, hps)
+        FROM FixtureApiSports f
         LEFT JOIN FETCH f.homeTeam ht
         LEFT JOIN FETCH ht.teamStatistics 
         LEFT JOIN FETCH ht.players hp 
         LEFT JOIN FETCH hp.playerApiSports hpas 
         LEFT JOIN FETCH ht.teamApiSports tas 
-        LEFT JOIN FETCH hp.statistics hps 
+        LEFT JOIN ApiSportsMatchPlayerStatistics hps ON hps.matchPlayer = hp
         WHERE f.apiId = :fixtureApiId
     """,
     )
-    fun findFixtureHomeTeamLineupAndStats(fixtureApiId: Long): FixtureApiSports?
+    fun findFixtureHomeTeamLineupAndStats(fixtureApiId: Long): List<FixturePlayerStatisticsRow>
 
     @Query(
         """
-        SELECT f FROM FixtureApiSports f
+        SELECT new com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow(f, ap, aps)
+        FROM FixtureApiSports f
         LEFT JOIN FETCH f.awayTeam at
         LEFT JOIN FETCH at.teamStatistics
         LEFT JOIN FETCH at.players ap
         LEFT JOIN FETCH ap.playerApiSports apas
         LEFT JOIN FETCH at.teamApiSports tas
-        LEFT JOIN FETCH ap.statistics aps
+        LEFT JOIN ApiSportsMatchPlayerStatistics aps ON aps.matchPlayer = ap
         WHERE f.apiId = :fixtureApiId
     """,
     )
-    fun findFixtureAwayTeamLineupAndStats(fixtureApiId: Long): FixtureApiSports?
+    fun findFixtureAwayTeamLineupAndStats(fixtureApiId: Long): List<FixturePlayerStatisticsRow>
 
     /**
      * UID 기반 경기 이벤트 조회
@@ -147,34 +156,36 @@ interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
      */
     @Query(
         """
-        SELECT f FROM FixtureApiSports f
+        SELECT new com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow(f, hp, hps)
+        FROM FixtureApiSports f
         LEFT JOIN FETCH f.homeTeam ht
         LEFT JOIN FETCH ht.teamStatistics
         LEFT JOIN FETCH ht.players hp
         LEFT JOIN FETCH hp.playerApiSports hpas
         LEFT JOIN FETCH ht.teamApiSports tas
-        LEFT JOIN FETCH hp.statistics hps
+        LEFT JOIN ApiSportsMatchPlayerStatistics hps ON hps.matchPlayer = hp
         WHERE f.core.uid = :fixtureUid
     """,
     )
-    fun findFixtureHomeTeamLineupAndStatsByUid(fixtureUid: String): FixtureApiSports?
+    fun findFixtureHomeTeamLineupAndStatsByUid(fixtureUid: String): List<FixturePlayerStatisticsRow>
 
     /**
      * UID 기반 원정팀 라인업 및 통계 조회
      */
     @Query(
         """
-        SELECT f FROM FixtureApiSports f
+        SELECT new com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow(f, ap, aps)
+        FROM FixtureApiSports f
         LEFT JOIN FETCH f.awayTeam at
         LEFT JOIN FETCH at.teamStatistics
         LEFT JOIN FETCH at.players ap
         LEFT JOIN FETCH ap.playerApiSports apas
         LEFT JOIN FETCH at.teamApiSports tas
-        LEFT JOIN FETCH ap.statistics aps
+        LEFT JOIN ApiSportsMatchPlayerStatistics aps ON aps.matchPlayer = ap
         WHERE f.core.uid = :fixtureUid
     """,
     )
-    fun findFixtureAwayTeamLineupAndStatsByUid(fixtureUid: String): FixtureApiSports?
+    fun findFixtureAwayTeamLineupAndStatsByUid(fixtureUid: String): List<FixturePlayerStatisticsRow>
 
     /**
      * UID 기반 홈팀 라인업 전용 조회 (통계 제외 - 가벼운 쿼리)

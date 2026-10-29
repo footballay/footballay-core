@@ -126,6 +126,8 @@ class MatchPlayerManager(
                     key to player
                 }
             entityBundle.allMatchPlayers = savedPlayersMap
+            val savedPlayerUids = savedPlayers.map { it.matchPlayerUid }.toSet()
+            entityBundle.playerStatsByMatchPlayerUid = entityBundle.playerStatsByMatchPlayerUid.filterKeys(savedPlayerUids::contains)
 
             log.info("MatchPlayer processing completed - Total saved: {}", savedPlayers.size)
             return MatchPlayerProcessResult(

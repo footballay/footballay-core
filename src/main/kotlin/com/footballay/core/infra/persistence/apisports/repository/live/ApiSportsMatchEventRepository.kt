@@ -49,6 +49,15 @@ interface ApiSportsMatchEventRepository : JpaRepository<ApiSportsMatchEvent, Lon
         SELECT e FROM ApiSportsMatchEvent e
         JOIN e.fixtureApi f
         JOIN f.core c
+        LEFT JOIN FETCH e.matchTeam mt
+        LEFT JOIN FETCH mt.teamApiSports ta
+        LEFT JOIN FETCH ta.teamCore
+        LEFT JOIN FETCH e.player p
+        LEFT JOIN FETCH p.playerApiSports pa
+        LEFT JOIN FETCH pa.playerCore
+        LEFT JOIN FETCH e.assist a
+        LEFT JOIN FETCH a.playerApiSports aa
+        LEFT JOIN FETCH aa.playerCore
         WHERE c.uid = :fixtureUid
         ORDER BY e.sequence ASC
     """,

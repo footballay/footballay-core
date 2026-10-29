@@ -97,10 +97,9 @@ class MatchDataQueryServiceImpl(
      * @return DomainResult<FixtureEventsModel>
      */
     override fun getFixtureEvents(fixtureUid: String): DomainResult<FixtureEventsModel, DomainFail> {
-        // FixtureApiSports를 먼저 조회해서 존재 여부 확인
-        val fixture =
-            fixtureApiSportsRepository.findByCoreUid(fixtureUid)
-                ?: return DomainResult.Fail(DomainFail.NotFound("Fixture", fixtureUid))
+        if (!fixtureApiSportsRepository.existsByCore_Uid(fixtureUid)) {
+            return DomainResult.Fail(DomainFail.NotFound("Fixture", fixtureUid))
+        }
 
         val events = matchEventRepository.findByFixtureUidOrderBySequenceAsc(fixtureUid)
         log.debug("Fetched {} events for fixture uid: {}", events.size, fixtureUid)

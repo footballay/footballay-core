@@ -11,7 +11,7 @@ import jakarta.persistence.Table
 
 @Entity
 @Table(name = "team_player_core")
-class TeamPlayerCore(
+open class TeamPlayerCore(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,

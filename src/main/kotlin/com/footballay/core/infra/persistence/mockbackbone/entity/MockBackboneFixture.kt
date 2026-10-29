@@ -25,7 +25,7 @@ import java.time.Instant
         Index(name = "idx_mock_fixture_created_at", columnList = "created_at"),
     ],
 )
-class MockBackboneFixture(
+open class MockBackboneFixture(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,

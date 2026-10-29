@@ -5,7 +5,7 @@ import jakarta.persistence.*
 
 @Entity
 @Table(name = "team_apisports")
-data class TeamApiSports(
+open class TeamApiSports(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
@@ -32,5 +32,5 @@ data class TeamApiSports(
      */
     var preventUpdate: Boolean = false,
 ) {
-    override fun toString(): String = "TeamApiSports(id=$id, apiId=$apiId, name=$name, code=$code, teamCoreId=${teamCore?.id})"
+    override fun toString(): String = "TeamApiSports(id=$id, apiId=$apiId, name=$name, code=$code)"
 }

@@ -18,7 +18,7 @@ import java.time.LocalDate
         ),
     ],
 )
-data class LeagueApiSportsSeason(
+open class LeagueApiSportsSeason(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
@@ -34,10 +34,10 @@ data class LeagueApiSportsSeason(
     @JoinColumn(name = "league_season_core_id", referencedColumnName = "id", unique = true)
     var leagueSeasonCore: LeagueSeasonCore? = null,
 ) {
-    /** 경기 저장용 조회에서 이 시즌의 기존 경기를 API ID로 가져옵니다. */
+    /** 경기 저장용 조회에서 이 시즌의 기존 경기를 API ID로 가져오며, Hibernate 타입 추론을 위해 JVM wildcard를 억제합니다. */
     @OneToMany(mappedBy = "season", fetch = FetchType.LAZY)
     @MapKey(name = "apiId")
-    var fixtures: Map<Long, FixtureApiSports> = emptyMap()
+    var fixtures: Map<Long, @JvmSuppressWildcards FixtureApiSports> = emptyMap()
 
     override fun toString(): String = "LeagueApiSportsSeason(seasonEnd=$seasonEnd, seasonStart=$seasonStart, seasonYear=$seasonYear, id=$id)"
 }

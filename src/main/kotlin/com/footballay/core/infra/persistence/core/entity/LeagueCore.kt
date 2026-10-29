@@ -2,13 +2,14 @@ package com.footballay.core.infra.persistence.core.entity
 
 import com.footballay.core.domain.league.MatchCollect
 import jakarta.persistence.*
+import org.hibernate.proxy.HibernateProxy
 
 /**
  * uid 에 인덱스 필요 - 외부 노출 ID로 사용되기 때문
  */
 @Entity
 @Table(name = "league_core")
-data class LeagueCore(
+open class LeagueCore(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
@@ -37,6 +38,16 @@ data class LeagueCore(
     )
     var leagueTeams: MutableSet<LeagueTeamCore> = mutableSetOf(),
 ) {
+    final override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is LeagueCore) return false
+        val thisId = if (this is HibernateProxy) hibernateLazyInitializer.internalIdentifier else id
+        val otherId = if (other is HibernateProxy) other.hibernateLazyInitializer.internalIdentifier else other.id
+        return thisId != null && thisId == otherId
+    }
+
+    final override fun hashCode(): Int = LeagueCore::class.java.hashCode()
+
     fun addTeam(team: TeamCore) {
         val existingRelation = leagueTeams.any { it.team?.id == team.id }
         if (!existingRelation) {

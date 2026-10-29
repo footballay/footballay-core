@@ -4,7 +4,7 @@ import jakarta.persistence.*
 
 @Entity
 @Table(name = "venue_apisports")
-data class VenueApiSports(
+open class VenueApiSports(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null, // 데이터베이스에서 자동 생성되는 ID

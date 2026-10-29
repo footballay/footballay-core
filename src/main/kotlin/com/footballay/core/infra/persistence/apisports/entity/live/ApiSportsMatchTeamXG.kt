@@ -1,6 +1,7 @@
 package com.footballay.core.infra.persistence.apisports.entity.live
 
 import jakarta.persistence.*
+import org.hibernate.proxy.HibernateProxy
 
 /**
  * 팀별 xG 기록 엔티티
@@ -15,7 +16,7 @@ import jakarta.persistence.*
         UniqueConstraint(columnNames = ["match_team_statistics_id", "elapsed_time"]),
     ],
 )
-class ApiSportsMatchTeamXG(
+open class ApiSportsMatchTeamXG(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
     @ManyToOne(fetch = FetchType.LAZY)
@@ -46,23 +47,15 @@ class ApiSportsMatchTeamXG(
      * - Hibernate 프록시 처리 포함
      * - 연관관계는 제외하여 성능 및 무한 재귀 방지
      */
-    override fun equals(other: Any?): Boolean {
+    final override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other == null) return false
-
-        // 간단한 타입 체크
         if (other !is ApiSportsMatchTeamXG) return false
-
-        // ID 기반 비교 (영속 상태에서만)
-        return id != null && id == other.id
+        val thisId = if (this is HibernateProxy) hibernateLazyInitializer.internalIdentifier else id
+        val otherId = if (other is HibernateProxy) other.hibernateLazyInitializer.internalIdentifier else other.id
+        return thisId != null && thisId == otherId
     }
 
-    /**
-     * 일관된 해시코드: 클래스 기반
-     * - ID 변경에 영향받지 않음
-     * - 영속 상태 전환 시에도 일관성 유지
-     */
-    override fun hashCode(): Int = javaClass.hashCode()
+    final override fun hashCode(): Int = ApiSportsMatchTeamXG::class.java.hashCode()
 
     /**
      * 안전한 toString: 연관관계 제외

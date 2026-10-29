@@ -21,7 +21,7 @@ import jakarta.persistence.*
         UniqueConstraint(columnNames = ["match_player_uid"]),
     ],
 )
-class ApiSportsMatchPlayer(
+open class ApiSportsMatchPlayer(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
     @Column(name = "match_player_uid", nullable = false, unique = true)

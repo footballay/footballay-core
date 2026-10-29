@@ -13,6 +13,8 @@ import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import com.footballay.core.infra.query.MatchDataQueryService
 import com.footballay.core.infra.query.FixtureScheduleReadQueryService
 import jakarta.persistence.EntityManager
+import org.hibernate.Hibernate
+import org.hibernate.proxy.HibernateProxy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
@@ -65,6 +67,8 @@ class RepositoryFlowTimingTest {
             recorder.start()
             val fixtureReference = em.getReference(FixtureApiSports::class.java, fixtureId)
             val referenceStatements = recorder.stop()
+            check(fixtureReference is HibernateProxy && !Hibernate.isInitialized(fixtureReference))
+            check(referenceStatements.isEmpty()) { "Obtaining a fixture reference must not execute SQL" }
             println("EVENT_DIAG reference=${referenceStatements.size} class=${fixtureReference.javaClass.name}")
             em.clear()
             recorder.phase = "event-repository"
@@ -79,6 +83,8 @@ class RepositoryFlowTimingTest {
                 event.assist?.playerApiSports?.playerCore?.uid
             }
             val accessStatements = recorder.stop()
+            check(repositoryStatements.size == 1) { "Event loading executed ${repositoryStatements.size} SQL statements" }
+            check(accessStatements.isEmpty()) { "Event mapping caused additional lazy loads" }
             println("EVENT_DIAG repository=${repositoryStatements.size} access=${accessStatements.size} rows=${events.size}")
             repositoryStatements.forEachIndexed { index, statement ->
                 println("EVENT_DIAG repo ${index + 1}: ${statement.sql.substringAfter(" from ").take(180)}")

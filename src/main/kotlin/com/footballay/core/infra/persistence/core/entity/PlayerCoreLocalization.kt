@@ -18,7 +18,7 @@ import jakarta.persistence.UniqueConstraint
     name = "player_core_localization",
     uniqueConstraints = [UniqueConstraint(columnNames = ["player_core_uid", "locale"])],
 )
-data class PlayerCoreLocalization(
+open class PlayerCoreLocalization(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,

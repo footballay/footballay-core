@@ -5,6 +5,7 @@ import com.footballay.core.domain.matchcollect.FinishedMatchCollectPolicy
 import com.footballay.core.domain.matchcollect.MatchCollectStatus
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
+import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import com.footballay.core.logger
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
@@ -23,6 +24,7 @@ data class FinishedMatchCollectBatchResult(
 @Service
 class LeagueMatchCollectManager(
     private val fixtureCoreRepository: FixtureCoreRepository,
+    private val stateRepository: FixtureMatchCollectStateRepository,
     private val matchCollectSyncExecutor: MatchCollectSyncExecutor,
     private val clock: Clock = Clock.systemUTC(),
 ) {
@@ -41,10 +43,13 @@ class LeagueMatchCollectManager(
         batchSize: Int = DEFAULT_BATCH_SIZE,
     ): FinishedMatchCollectBatchResult {
         val candidates = findFinishedCandidates(now, batchSize)
+        val statesByFixtureUid =
+            if (candidates.isEmpty()) emptyMap()
+            else stateRepository.findAllByFixtureUids(candidates.map { it.uid }).associateBy { it.fixture.uid }
         val dueFixtures =
             candidates.filter { fixture ->
                 val kickoff = fixture.kickoff
-                kickoff != null && finishedPolicy.shouldCollect(kickoff, fixture.matchCollectState?.lastCollectedAt, now)
+                kickoff != null && finishedPolicy.shouldCollect(kickoff, statesByFixtureUid[fixture.uid]?.lastCollectedAt, now)
             }
 
         val results = dueFixtures.map { matchCollectSyncExecutor.collectFinished(it.uid, now) }

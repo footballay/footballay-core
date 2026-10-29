@@ -8,6 +8,7 @@ import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.read.AvailableFixtureJobInput
 import com.footballay.core.infra.persistence.core.read.FixtureScheduleReadRow
 import com.footballay.core.infra.persistence.core.read.FixtureCoreAndApiSports
+import com.footballay.core.infra.persistence.core.read.FixtureWithMatchCollectState
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -131,7 +132,7 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
         FROM FixtureCore f
         JOIN FETCH f.leagueSeason ls
         JOIN FETCH ls.league l
-        LEFT JOIN FETCH f.matchCollectState s
+        LEFT JOIN FixtureMatchCollectState s ON s.fixture = f
         WHERE l.available = true
           AND l.matchCollect = :matchCollect
           AND ls.current = true
@@ -153,11 +154,11 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
 
     @Query(
         """
-        SELECT f
+        SELECT new com.footballay.core.infra.persistence.core.read.FixtureWithMatchCollectState(f, s)
         FROM FixtureCore f
         JOIN FETCH f.leagueSeason ls
         JOIN FETCH ls.league l
-        LEFT JOIN FETCH f.matchCollectState s
+        LEFT JOIN FixtureMatchCollectState s ON s.fixture = f
         WHERE l.uid = :leagueUid
           AND ls.current = true
         ORDER BY f.kickoff ASC, f.id ASC
@@ -165,15 +166,15 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     )
     fun findMatchCollectStateReconcileFixturesByLeagueUid(
         @Param("leagueUid") leagueUid: String,
-    ): List<FixtureCore>
+    ): List<FixtureWithMatchCollectState>
 
     @Query(
         """
-        SELECT f
+        SELECT new com.footballay.core.infra.persistence.core.read.FixtureWithMatchCollectState(f, s)
         FROM FixtureCore f
         JOIN FETCH f.leagueSeason ls
         JOIN FETCH ls.league l
-        LEFT JOIN FETCH f.matchCollectState s
+        LEFT JOIN FixtureMatchCollectState s ON s.fixture = f
         WHERE l.uid = :leagueUid
           AND ls.current = true
           AND f.available = false
@@ -182,7 +183,7 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
     )
     fun findMatchCollectLiveJobReconcileFixturesByLeagueUid(
         @Param("leagueUid") leagueUid: String,
-    ): List<FixtureCore>
+    ): List<FixtureWithMatchCollectState>
 
     @Query(
         """

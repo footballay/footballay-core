@@ -14,6 +14,9 @@ import org.springframework.stereotype.Repository
 interface FixtureMatchCollectStateRepository : JpaRepository<FixtureMatchCollectState, Long> {
     fun findByFixture_Uid(fixtureUid: String): FixtureMatchCollectState?
 
+    @Query("SELECT s FROM FixtureMatchCollectState s JOIN FETCH s.fixture f WHERE f.uid IN :fixtureUids")
+    fun findAllByFixtureUids(@Param("fixtureUids") fixtureUids: Collection<String>): List<FixtureMatchCollectState>
+
     fun existsByFixture_Uid(fixtureUid: String): Boolean
 
     @EntityGraph(attributePaths = ["fixture", "fixture.leagueSeason", "fixture.leagueSeason.league", "fixture.homeTeam", "fixture.awayTeam"])

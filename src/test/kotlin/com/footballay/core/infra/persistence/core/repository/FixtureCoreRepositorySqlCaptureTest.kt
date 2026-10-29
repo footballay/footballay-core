@@ -124,7 +124,8 @@ class FixtureCoreRepositorySqlCaptureTest {
         val fixtures = repository.findMatchCollectStateReconcileFixturesByLeagueUid(league.uid)
         val fixtureSelects = inspector.captured().size
         assertThat(fixtures).hasSize(4)
-        assertThat(fixtures.map { it.leagueSeason?.league?.uid }).containsOnly(league.uid)
+        assertThat(fixtures.map { it.fixture.leagueSeason?.league?.uid }).containsOnly(league.uid)
+        assertThat(fixtures.map { it.state?.matchCollectStatus }).containsOnly(MatchCollectStatus.PENDING)
         assertThat(inspector.captured()).hasSize(fixtureSelects)
 
         em.clear()
@@ -132,7 +133,8 @@ class FixtureCoreRepositorySqlCaptureTest {
         val liveFixtures = repository.findMatchCollectLiveJobReconcileFixturesByLeagueUid(league.uid)
         val liveSelects = inspector.captured().size
         assertThat(liveFixtures).hasSize(4)
-        assertThat(liveFixtures.map { it.leagueSeason?.league?.uid }).containsOnly(league.uid)
+        assertThat(liveFixtures.map { it.fixture.leagueSeason?.league?.uid }).containsOnly(league.uid)
+        assertThat(liveFixtures.map { it.state?.matchCollectStatus }).containsOnly(MatchCollectStatus.PENDING)
         assertThat(inspector.captured()).hasSize(liveSelects)
 
         em.clear()

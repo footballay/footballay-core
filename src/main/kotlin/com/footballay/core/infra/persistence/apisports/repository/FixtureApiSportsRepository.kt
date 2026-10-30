@@ -198,7 +198,9 @@ interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
         LEFT JOIN FETCH f.homeTeam ht
         LEFT JOIN FETCH ht.players hp
         LEFT JOIN FETCH hp.playerApiSports hpas
+        LEFT JOIN FETCH hpas.playerCore
         LEFT JOIN FETCH ht.teamApiSports tas
+        LEFT JOIN FETCH tas.teamCore
         WHERE f.core.uid = :fixtureUid
     """,
     )
@@ -213,7 +215,9 @@ interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
         LEFT JOIN FETCH f.awayTeam at
         LEFT JOIN FETCH at.players ap
         LEFT JOIN FETCH ap.playerApiSports apas
+        LEFT JOIN FETCH apas.playerCore
         LEFT JOIN FETCH at.teamApiSports tas
+        LEFT JOIN FETCH tas.teamCore
         WHERE f.core.uid = :fixtureUid
     """,
     )

@@ -25,13 +25,12 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.nio.file.Files
-import java.nio.file.Path
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneId
 
 /** 동일 로컬 조건에서 JDBC 왕복과 엔티티 변환을 포함한 read flow 상대 시간을 측정합니다. */
-@EnabledIfEnvironmentVariable(named = "BENCHMARK_FLOW_TIMING", matches = "true")
+@EnabledIfEnvironmentVariable(named = "BENCHMARK_CAPTURE", matches = "true")
 @SpringBootTest(properties = [
     "spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false", "spring.jpa.show-sql=false",
     "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect",
@@ -98,12 +97,8 @@ class RepositoryFlowTimingTest {
 
     @Test
     fun timeReadFlowsWithColdPersistenceContextAndWarmDatabase() {
-        val phase = System.getenv("BENCHMARK_FLOW_PHASE") ?: error("Specify BENCHMARK_FLOW_PHASE")
-        require(phase.matches(Regex("[a-z0-9-]+")))
-        val root = Path.of("plan", "query-optimization", "work")
-        val output = root.resolve("flow-$phase")
-        check(!Files.exists(output)) { "Preserve previous measurements: $output already exists" }
-        Files.createDirectories(output)
+        val phase = BenchmarkCaptureOutput.phase()
+        val output = BenchmarkCaptureOutput.directory("flow")
         val league = "bench-league-000000000001"
         val fixture = "bench-fixture-000000003425"
         val actions: Map<String, () -> Any> = linkedMapOf(

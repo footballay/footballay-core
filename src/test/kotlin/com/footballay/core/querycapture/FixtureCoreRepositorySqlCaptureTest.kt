@@ -1,4 +1,4 @@
-package com.footballay.core.infra.persistence.core.repository
+package com.footballay.core.querycapture
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.footballay.core.domain.league.MatchCollect
@@ -9,8 +9,8 @@ import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.FixtureMatchCollectState
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
-import com.footballay.core.querycapture.SqlCaptureStatementInspector
-import com.footballay.core.querycapture.SqlCaptureTestConfiguration
+import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
+import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.assertj.core.api.Assertions.assertThat

@@ -15,12 +15,10 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
-import java.nio.file.Files
-import java.nio.file.Path
 import java.time.Instant
 
 /** 1단계의 문제 대상 조회가 현재 Hibernate에서 실행하는 SQL을 보존합니다. */
-@EnabledIfEnvironmentVariable(named = "BENCHMARK_STEP1_CAPTURE", matches = "true")
+@EnabledIfEnvironmentVariable(named = "BENCHMARK_CAPTURE", matches = "true")
 @SpringBootTest(properties = [
     "spring.jpa.hibernate.ddl-auto=none", "spring.flyway.enabled=false", "spring.jpa.show-sql=false",
     "spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect",
@@ -59,9 +57,7 @@ class Step1ProblemQueryCaptureTest {
             "matchcollect-reconcile" to { fixtures.findMatchCollectStateReconcileFixturesByLeagueUid(leagueUid) },
             "admin-data-and-count" to { states.findAdminStatesByLeagueUidAndStatuses(leagueUid, statuses, PageRequest.of(0, 50)).totalElements },
         )
-        val output = Path.of("plan", "query-optimization", "work", "step1-current-timed-20261029")
-        check(!Files.exists(output)) { "Preserve prior capture: $output" }
-        Files.createDirectories(output)
+        val output = BenchmarkCaptureOutput.directory("step1")
         val transaction = TransactionTemplate(transactions).also { it.isReadOnly = true; it.timeout = 180 }
         val summary = mutableListOf<Map<String, Any>>()
         for ((name, action) in queries) {

@@ -155,36 +155,44 @@ interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
 
     /**
      * UID 기반 홈팀 라인업 및 통계 조회
+     * Core UID 조회를 시작점으로 두고 제공자 경기와 필요한 통계를 함께 가져옵니다.
      */
     @Query(
         """
         SELECT new com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow(f, hp, hps)
-        FROM FixtureApiSports f
+        FROM FixtureCore c
+        JOIN FixtureApiSports f ON f.core = c
         LEFT JOIN FETCH f.homeTeam ht
         LEFT JOIN FETCH ht.teamStatistics
         LEFT JOIN FETCH ht.players hp
         LEFT JOIN FETCH hp.playerApiSports hpas
+        LEFT JOIN FETCH hpas.playerCore
         LEFT JOIN FETCH ht.teamApiSports tas
+        LEFT JOIN FETCH tas.teamCore
         LEFT JOIN ApiSportsMatchPlayerStatistics hps ON hps.matchPlayer = hp
-        WHERE f.core.uid = :fixtureUid
+        WHERE c.uid = :fixtureUid
     """,
     )
     fun findFixtureHomeTeamLineupAndStatsByUid(fixtureUid: String): List<FixturePlayerStatisticsRow>
 
     /**
      * UID 기반 원정팀 라인업 및 통계 조회
+     * Core UID 조회를 시작점으로 두고 제공자 경기와 필요한 통계를 함께 가져옵니다.
      */
     @Query(
         """
         SELECT new com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow(f, ap, aps)
-        FROM FixtureApiSports f
+        FROM FixtureCore c
+        JOIN FixtureApiSports f ON f.core = c
         LEFT JOIN FETCH f.awayTeam at
         LEFT JOIN FETCH at.teamStatistics
         LEFT JOIN FETCH at.players ap
         LEFT JOIN FETCH ap.playerApiSports apas
+        LEFT JOIN FETCH apas.playerCore
         LEFT JOIN FETCH at.teamApiSports tas
+        LEFT JOIN FETCH tas.teamCore
         LEFT JOIN ApiSportsMatchPlayerStatistics aps ON aps.matchPlayer = ap
-        WHERE f.core.uid = :fixtureUid
+        WHERE c.uid = :fixtureUid
     """,
     )
     fun findFixtureAwayTeamLineupAndStatsByUid(fixtureUid: String): List<FixturePlayerStatisticsRow>

@@ -209,16 +209,22 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
 
     /**
      * 특정 리그(UID 기반)에서 from 이후 가장 가까운 ApiSports-backed kickoff 시각을 조회합니다.
+     * 시즌별 첫 Provider 경기 하나만 읽고 전체 시즌에서 가장 이른 시각을 선택합니다.
      */
     @Query(
         """
-        SELECT MIN(f.kickoff)
+        SELECT MIN((
+            SELECT f.kickoff
+            FROM FixtureCore f
+            WHERE f.leagueSeason = ls
+              AND f.kickoff >= :from
+              AND EXISTS (SELECT fas.id FROM FixtureApiSports fas WHERE fas.core = f)
+            ORDER BY f.kickoff ASC
+            LIMIT 1
+        ))
         FROM LeagueSeasonCore ls
         JOIN ls.league l
-        JOIN FixtureCore f ON f.leagueSeason = ls
-        JOIN FixtureApiSports fas ON fas.core = f
         WHERE l.uid = :leagueUid
-          AND f.kickoff >= :from
     """,
     )
     fun findMinApiSportsBackedKickoffAfterByLeagueUid(
@@ -228,16 +234,22 @@ interface FixtureCoreRepository : JpaRepository<FixtureCore, Long> {
 
     /**
      * 특정 리그(UID 기반)에서 before 이전 가장 가까운 ApiSports-backed kickoff 시각을 조회합니다.
+     * 시즌별 마지막 Provider 경기 하나만 읽고 전체 시즌에서 가장 늦은 시각을 선택합니다.
      */
     @Query(
         """
-        SELECT MAX(f.kickoff)
+        SELECT MAX((
+            SELECT f.kickoff
+            FROM FixtureCore f
+            WHERE f.leagueSeason = ls
+              AND f.kickoff < :before
+              AND EXISTS (SELECT fas.id FROM FixtureApiSports fas WHERE fas.core = f)
+            ORDER BY f.kickoff DESC
+            LIMIT 1
+        ))
         FROM LeagueSeasonCore ls
         JOIN ls.league l
-        JOIN FixtureCore f ON f.leagueSeason = ls
-        JOIN FixtureApiSports fas ON fas.core = f
         WHERE l.uid = :leagueUid
-          AND f.kickoff < :before
     """,
     )
     fun findMaxApiSportsBackedKickoffBeforeByLeagueUid(

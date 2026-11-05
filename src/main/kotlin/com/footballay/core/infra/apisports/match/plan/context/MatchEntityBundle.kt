@@ -14,8 +14,7 @@ import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatc
  * 저장 시 연관관계 설정에 활용
  *
  * **중요한 설계 원칙:**
- * - MatchPlayer와 PlayerStats는 1:1 관계이므로 MatchPlayer.statistics 필드로 통합 관리
- * - 별도의 allPlayerStats 맵은 제거하여 데이터 중복 방지
+ * - MatchPlayer와 PlayerStats의 연결은 MatchPlayer UID를 키로 별도 보관
  * - 일관성과 단순성 보장
  */
 data class MatchEntityBundle(
@@ -29,6 +28,7 @@ data class MatchEntityBundle(
     var allEvents: List<ApiSportsMatchEvent>,
     var homeTeamStat: ApiSportsMatchTeamStatistics? = null,
     var awayTeamStat: ApiSportsMatchTeamStatistics? = null,
+    var playerStatsByMatchPlayerUid: Map<String, ApiSportsMatchPlayerStatistics> = emptyMap(),
 ) {
     companion object {
         fun createEmpty(): MatchEntityBundle =
@@ -46,44 +46,25 @@ data class MatchEntityBundle(
      *
      * **핵심 로직:**
      * - allMatchPlayers에서 해당 키의 MatchPlayer를 찾음
-     * - MatchPlayer.statistics 필드에서 PlayerStats 반환
+     * - MatchPlayer UID로 PlayerStats 반환
      *
      * @param playerKey MatchPlayer 키
      * @return 해당하는 PlayerStats 또는 null
      */
-    fun getPlayerStats(playerKey: String): ApiSportsMatchPlayerStatistics? = allMatchPlayers[playerKey]?.statistics
+    fun getPlayerStats(playerKey: String): ApiSportsMatchPlayerStatistics? =
+        allMatchPlayers[playerKey]?.matchPlayerUid?.let(playerStatsByMatchPlayerUid::get)
 
     /**
      * 모든 PlayerStats를 맵으로 반환합니다.
      *
      * **핵심 로직:**
-     * - allMatchPlayers에서 statistics가 있는 것만 필터링
+     * - allMatchPlayers에 남은 선수의 통계만 반환
      * - 키 기반으로 맵 구성
      *
      * @return PlayerStats 맵 (키: playerKey, 값: PlayerStats)
      */
     fun getAllPlayerStats(): Map<String, ApiSportsMatchPlayerStatistics> =
-        allMatchPlayers
-            .mapNotNull { (key, player) ->
-                player.statistics?.let { stats -> key to stats }
-            }.toMap()
-
-    /**
-     * PlayerStats를 설정합니다.
-     *
-     * **핵심 로직:**
-     * - allMatchPlayers에서 해당 키의 MatchPlayer를 찾음
-     * - MatchPlayer.statistics 필드에 PlayerStats 설정
-     *
-     * @param playerKey MatchPlayer 키
-     * @param playerStats 설정할 PlayerStats
-     */
-    fun setPlayerStats(
-        playerKey: String,
-        playerStats: ApiSportsMatchPlayerStatistics,
-    ) {
-        allMatchPlayers[playerKey]?.let { player ->
-            player.statistics = playerStats
-        }
-    }
+        allMatchPlayers.mapNotNull { (key, player) ->
+            playerStatsByMatchPlayerUid[player.matchPlayerUid]?.let { stats -> key to stats }
+        }.toMap()
 }

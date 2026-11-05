@@ -431,7 +431,6 @@ class MatchEntityGenerator(
         val teamStats =
             apiSportsMatchTeamStatisticsRepository.save(
                 ApiSportsMatchTeamStatistics(
-                    matchTeam = matchTeam,
                     shotsOnGoal = statsConfig.shotsOnGoal,
                     shotsOffGoal = statsConfig.shotsOffGoal,
                     totalShots = statsConfig.totalShots,
@@ -452,7 +451,7 @@ class MatchEntityGenerator(
                 ),
             )
 
-        // 양방향 연관관계 설정
+        // FK를 보유한 팀에서 통계를 연결합니다.
         matchTeam.teamStatistics = teamStats
         apiSportsMatchTeamRepository.save(matchTeam)
 
@@ -507,15 +506,7 @@ class MatchEntityGenerator(
                         ),
                     )
 
-                // 양방향 연관관계 설정
-                matchPlayer.statistics = playerStats
-
                 playerStats
-            }.also {
-                // 모든 MatchPlayer 저장 (연관관계 업데이트)
-                matchPlayers.forEach { player ->
-                    apiSportsMatchPlayerRepository.save(player)
-                }
             }
     }
 }

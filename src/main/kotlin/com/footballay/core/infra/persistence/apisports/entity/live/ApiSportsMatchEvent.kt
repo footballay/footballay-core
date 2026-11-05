@@ -7,7 +7,7 @@ import jakarta.persistence.*
 @Table(
     name = "apisports_match_event",
 )
-class ApiSportsMatchEvent(
+open class ApiSportsMatchEvent(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
     @ManyToOne(fetch = FetchType.LAZY)

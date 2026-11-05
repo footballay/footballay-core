@@ -111,7 +111,6 @@ class TeamStatsManager(
         // 기존 있으면 업데이트, 없으면 생성
         val teamStat =
             existingStat ?: ApiSportsMatchTeamStatistics(
-                matchTeam = matchTeam,
                 xgList = mutableListOf(),
             )
 
@@ -121,8 +120,7 @@ class TeamStatsManager(
         // XG 리스트 처리
         processXGList(teamStat, dto.xgList)
 
-        // 양방향 연관관계 설정
-        teamStat.matchTeam = matchTeam
+        // FK를 보유한 팀에서 통계를 연결합니다.
         matchTeam.teamStatistics = teamStat
 
         return teamStat

@@ -10,7 +10,7 @@ import java.time.Instant
 
 @Entity
 @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
-data class FixtureApiSports(
+open class FixtureApiSports(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
@@ -62,7 +62,7 @@ data class FixtureApiSports(
     var events: MutableList<ApiSportsMatchEvent> = mutableListOf(),
 ) {
     override fun toString(): String =
-        "FixtureApiSports(id=$id, core.id=${core?.id}, apiId=$apiId, referee=$referee, " +
-            "date=$date, round=$round, venue.id=${venue?.id}, status=$status, " +
-            "score=$score, homeTeam.id=${homeTeam?.id}, awayTeam.id=${awayTeam?.id})"
+        "FixtureApiSports(id=$id, apiId=$apiId, referee=$referee, " +
+            "date=$date, round=$round, status=$status, " +
+            "score=$score)"
 }

@@ -148,8 +148,8 @@ class AvailableLeagueFacadeTest {
                 leagueCore = leagueCore,
                 available = false,
             )
-        leagueCore.apiSportsLeague = leagueApiSports
         given(leagueCoreRepository.findByUid(leagueUid)).willReturn(leagueCore)
+        given(leagueApiSportsRepository.findByLeagueCoreId(1L)).willReturn(leagueApiSports)
 
         val result = facade.setLeagueAvailableByCoreUid(leagueUid, true)
 
@@ -158,6 +158,7 @@ class AvailableLeagueFacadeTest {
         assertThat(leagueCore.available).isTrue()
         assertThat(leagueApiSports.available).isTrue()
         verify(leagueCoreRepository).findByUid(leagueUid)
+        verify(leagueApiSportsRepository).findByLeagueCoreId(1L)
     }
 
     @Test

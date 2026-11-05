@@ -5,6 +5,7 @@ import com.footballay.core.domain.league.MatchCollect
 import com.footballay.core.domain.matchcollect.MatchCollectStatus
 import com.footballay.core.infra.match.FixtureStatusClassifier
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
+import com.footballay.core.infra.persistence.core.read.FixtureWithMatchCollectState
 import com.footballay.core.infra.persistence.core.entity.FixtureMatchCollectState
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
@@ -24,6 +25,7 @@ import org.mockito.Mockito.lenient
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.any
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.time.Clock
@@ -48,6 +50,19 @@ class MatchCollectLiveJobReconcilerTest {
 
     private lateinit var fixtureReconciler: MatchCollectLiveFixtureReconciler
     private lateinit var leagueReconciler: MatchCollectLiveJobReconcilerImpl
+
+    @Test
+    fun repeatedNotPlayedReconcileDoesNotCreateDuplicateState() {
+        val fixture = fixture(kickoff = now.plusSeconds(60), statusCode = FixtureStatusCode.CANC)
+        val saved = FixtureMatchCollectState(fixture = fixture, matchCollectStatus = MatchCollectStatus.NOT_PLAYED)
+        whenever(stateRepository.findByFixture_Uid(fixture.uid)).thenReturn(null, saved)
+
+        fixtureReconciler.reconcileFixture(fixture)
+        fixtureReconciler.reconcileFixture(fixture)
+
+        verify(stateRepository, times(2)).findByFixture_Uid(fixture.uid)
+        verify(stateRepository, times(1)).save(any<FixtureMatchCollectState>())
+    }
 
     @BeforeEach
     fun setUp() {
@@ -152,7 +167,7 @@ class MatchCollectLiveJobReconcilerTest {
     fun `NONE에서 LIVE로 바뀐 리그의 이미 종료된 current season fixture는 post job 대상이다`() {
         val kickoff = now.minus(MatchCollectLiveFixtureReconciler.LIVE_COLLECTION_WINDOW).plusSeconds(60)
         val fixture = fixture(kickoff = kickoff, statusCode = FixtureStatusCode.FT, matchCollect = MatchCollect.LIVE)
-        whenever(fixtureCoreRepository.findMatchCollectLiveJobReconcileFixturesByLeagueUid(leagueUid)).thenReturn(listOf(fixture))
+        whenever(fixtureCoreRepository.findMatchCollectLiveJobReconcileFixturesByLeagueUid(leagueUid)).thenReturn(listOf(FixtureWithMatchCollectState(fixture, null)))
         whenever(jobSchedulerService.registerOrReplaceMatchCollectJob(any(), any(), any(), any(), any()))
             .thenReturn(MatchJobRegistrationResult.Registered)
 
@@ -160,6 +175,7 @@ class MatchCollectLiveJobReconcilerTest {
 
         assertThat(result.success).isTrue()
         assertThat(result.planned).isEqualTo(1)
+        verify(stateRepository, never()).findByFixture_Uid(any())
         verify(jobSchedulerService).registerOrReplaceMatchCollectJob(
             MatchJobPhase.POST,
             leagueUid,

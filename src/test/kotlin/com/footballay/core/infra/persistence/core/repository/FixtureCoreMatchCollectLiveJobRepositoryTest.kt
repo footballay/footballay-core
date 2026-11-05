@@ -70,9 +70,9 @@ class FixtureCoreMatchCollectLiveJobRepositoryTest {
 
         val result = fixtureCoreRepository.findMatchCollectLiveJobReconcileFixturesByLeagueUid(league.uid)
 
-        assertThat(result.map { it.uid }).containsExactly(currentFixture.uid)
-        assertThat(result.first().leagueSeason?.current).isTrue()
-        assertThat(result.first().leagueSeason?.league?.matchCollect).isEqualTo(MatchCollect.NONE)
+        assertThat(result.map { it.fixture.uid }).containsExactly(currentFixture.uid)
+        assertThat(result.first().fixture.leagueSeason?.current).isTrue()
+        assertThat(result.first().fixture.leagueSeason?.league?.matchCollect).isEqualTo(MatchCollect.NONE)
     }
 
     @Test
@@ -113,9 +113,9 @@ class FixtureCoreMatchCollectLiveJobRepositoryTest {
 
         val result = fixtureCoreRepository.findMatchCollectStateReconcileFixturesByLeagueUid(league.uid)
 
-        assertThat(result.map { it.uid }).containsExactly(currentFixture.uid)
-        assertThat(result.first().leagueSeason?.current).isTrue()
-        assertThat(result.first().leagueSeason?.league?.uid).isEqualTo(league.uid)
+        assertThat(result.map { it.fixture.uid }).containsExactly(currentFixture.uid)
+        assertThat(result.first().fixture.leagueSeason?.current).isTrue()
+        assertThat(result.first().fixture.leagueSeason?.league?.uid).isEqualTo(league.uid)
     }
 
     private fun saveFixture(

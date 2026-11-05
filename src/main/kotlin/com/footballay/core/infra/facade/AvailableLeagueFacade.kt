@@ -50,7 +50,7 @@ class AvailableLeagueFacade(
                 ?: return leagueCoreNotLinked(apiId)
 
         leagueApiSports.available = available
-        setAvailableFlag(core, available)
+        setAvailableFlag(core, leagueApiSports, available)
 
         return DomainResult.Success(core.uid)
     }
@@ -71,21 +71,23 @@ class AvailableLeagueFacade(
             leagueCoreRepository.findByUid(leagueCoreUid)
                 ?: return leagueCoreNotFound(leagueCoreUid)
 
-        setAvailableFlag(core, available)
+        val leagueApiSports = core.id?.let(leagueApiSportsRepository::findByLeagueCoreId)
+        setAvailableFlag(core, leagueApiSports, available)
 
         return DomainResult.Success(core.uid)
     }
 
     private fun setAvailableFlag(
         core: LeagueCore,
+        leagueApiSports: LeagueApiSports?,
         available: Boolean,
     ) {
         core.available = available
-        core.apiSportsLeague?.available = available
+        leagueApiSports?.available = available
         log.info(
             "League available updated - coreUid={}, apiId={}, available={}",
             core.uid,
-            core.apiSportsLeague?.apiId,
+            leagueApiSports?.apiId,
             available,
         )
     }

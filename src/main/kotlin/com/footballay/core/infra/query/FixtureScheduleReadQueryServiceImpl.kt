@@ -6,7 +6,6 @@ import com.footballay.core.domain.facade.MockDataReadOption
 import com.footballay.core.domain.model.FixtureModel
 import com.footballay.core.domain.model.mapper.DomainModelMapper
 import com.footballay.core.infra.backbone.mock.resource.MockBackboneModelMapper
-import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.persistence.mockbackbone.repository.MockBackboneFixtureRepository
 import com.footballay.core.web.util.DateQueryResolver
@@ -145,8 +144,8 @@ class FixtureScheduleReadQueryServiceImpl(
     ): List<FixtureModel> {
         val apiSportsFixtures =
             fixtureCoreRepository
-                .findApiSportsBackedFixturesByLeagueUidInKickoffRange(leagueUid, startInclusive, endExclusive)
-                .map { toApiSportsFixtureModel(it, leagueUid) }
+                .findScheduleRowsByLeagueUidInKickoffRange(leagueUid, startInclusive, endExclusive)
+                .map { domainModelMapper.toFixtureModel(it, leagueUid) }
         val mockFixtures =
             if (option.includeMockData) {
                 mockBackboneFixtureRepository
@@ -157,23 +156,6 @@ class FixtureScheduleReadQueryServiceImpl(
             }
 
         return (apiSportsFixtures + mockFixtures).distinctBy { it.uid }
-    }
-
-    private fun toApiSportsFixtureModel(
-        fixture: FixtureCore,
-        leagueUid: String,
-    ): FixtureModel {
-        val apiSports =
-            requireNotNull(fixture.apiSports) {
-                "ApiSports-backed fixture query returned fixture without ApiSports data: ${fixture.uid}"
-            }
-        return domainModelMapper.toFixtureModel(
-            fixtureCore = fixture,
-            fixtureApiSports = apiSports,
-            teamHomeAndAway = fixture.homeTeam to fixture.awayTeam,
-            apiTeamHomeAndAway = fixture.homeTeam?.teamApiSports to fixture.awayTeam?.teamApiSports,
-            leagueUid = leagueUid,
-        )
     }
 
     private fun minOfNotNull(vararg values: Instant?): Instant? = values.filterNotNull().minOrNull()

@@ -82,10 +82,7 @@ class PlayerStatsManagerTest {
             mapOf(
                 MatchPlayerKeyGenerator.generateMatchPlayerKey(123L, "Test Player") to mockMatchPlayer,
             )
-        entityBundle.setPlayerStats(
-            MatchPlayerKeyGenerator.generateMatchPlayerKey(123L, "Test Player"),
-            existingStats,
-        )
+        entityBundle.playerStatsByMatchPlayerUid = mapOf(mockMatchPlayer.matchPlayerUid to existingStats)
 
         val updatedStats = listOf(existingStats)
         whenever(playerStatsRepository.saveAll(any<List<ApiSportsMatchPlayerStatistics>>())).thenReturn(updatedStats)
@@ -132,10 +129,7 @@ class PlayerStatsManagerTest {
             mapOf(
                 MatchPlayerKeyGenerator.generateMatchPlayerKey(123L, "Test Player") to mockMatchPlayer,
             )
-        entityBundle.setPlayerStats(
-            MatchPlayerKeyGenerator.generateMatchPlayerKey(123L, "Test Player"),
-            existingStats,
-        )
+        entityBundle.playerStatsByMatchPlayerUid = mapOf(mockMatchPlayer.matchPlayerUid to existingStats)
 
         // when
         val result = playerStatsManager.processPlayerStats(playerStatDto, entityBundle)
@@ -206,12 +200,12 @@ class PlayerStatsManagerTest {
         // given
         val mockMatchPlayer = createMockMatchPlayer(apiId = 123L, name = "Test Player")
         val mockStats = createMockPlayerStats(mockMatchPlayer)
-        mockMatchPlayer.statistics = mockStats
 
         entityBundle.allMatchPlayers =
             mapOf(
                 MatchPlayerKeyGenerator.generateMatchPlayerKey(123L, "Test Player") to mockMatchPlayer,
             )
+        entityBundle.playerStatsByMatchPlayerUid = mapOf(mockMatchPlayer.matchPlayerUid to mockStats)
 
         // when
         val allStats = entityBundle.getAllPlayerStats()

@@ -73,12 +73,12 @@ class AvailableFixtureFacade(
     fun addAvailableFixtureByCoreUid(fixtureCoreUid: String): DomainResult<String, DomainFail> {
         log.info("Adding available fixture - fixtureCoreUid={}", fixtureCoreUid)
 
-        val fixtureCore =
-            findFixtureCore(fixtureCoreUid)
+        val fixture =
+            findFixtureWithApiSports(fixtureCoreUid)
                 ?: return fixtureCoreNotFound(fixtureCoreUid)
 
-        return enableAvailableFixtureLifecycle(fixtureCore)
-            .syncLinkedBackboneAvailableOnSuccess(available = true, fixtureCore)
+        return enableAvailableFixtureLifecycle(fixture.core)
+            .syncApiSportsAvailableOnSuccess(available = true, fixture.apiSports)
     }
 
     /**
@@ -107,12 +107,12 @@ class AvailableFixtureFacade(
     fun removeAvailableFixtureByCoreUid(fixtureCoreUid: String): DomainResult<String, DomainFail> {
         log.info("Removing available fixture - fixtureCoreUid={}", fixtureCoreUid)
 
-        val fixtureCore =
-            findFixtureCore(fixtureCoreUid)
+        val fixture =
+            findFixtureWithApiSports(fixtureCoreUid)
                 ?: return fixtureCoreNotFound(fixtureCoreUid)
 
-        return disableAvailableFixtureLifecycle(fixtureCore)
-            .syncLinkedBackboneAvailableOnSuccess(available = false, fixtureCore)
+        return disableAvailableFixtureLifecycle(fixture.core)
+            .syncApiSportsAvailableOnSuccess(available = false, fixture.apiSports)
     }
 
     private fun enableAvailableFixtureLifecycle(fixtureCore: FixtureCore): DomainResult<String, DomainFail> {
@@ -240,38 +240,19 @@ class AvailableFixtureFacade(
         fixtureApiSportsRepository.save(fixtureApiSports)
     }
 
-    private fun syncLinkedBackboneAvailableFlags(
-        available: Boolean,
-        fixtureCore: FixtureCore,
-    ) {
-        fixtureCore.apiSports?.let {
-            setFixtureApiSportsAvailableFlag(available, it)
-        }
-    }
-
     private fun DomainResult<String, DomainFail>.syncApiSportsAvailableOnSuccess(
         available: Boolean,
-        fixtureApiSports: FixtureApiSports,
+        fixtureApiSports: FixtureApiSports?,
     ): DomainResult<String, DomainFail> {
-        if (this is DomainResult.Success) {
+        if (this is DomainResult.Success && fixtureApiSports != null) {
             setFixtureApiSportsAvailableFlag(available, fixtureApiSports)
-        }
-        return this
-    }
-
-    private fun DomainResult<String, DomainFail>.syncLinkedBackboneAvailableOnSuccess(
-        available: Boolean,
-        fixtureCore: FixtureCore,
-    ): DomainResult<String, DomainFail> {
-        if (this is DomainResult.Success) {
-            syncLinkedBackboneAvailableFlags(available, fixtureCore)
         }
         return this
     }
 
     private fun findFixtureOfApiSports(fixtureApiId: Long): FixtureApiSports? = fixtureApiSportsRepository.findByApiId(fixtureApiId)
 
-    private fun findFixtureCore(fixtureCoreUid: String): FixtureCore? = fixtureCoreRepository.findNullableByUid(fixtureCoreUid)
+    private fun findFixtureWithApiSports(fixtureCoreUid: String) = fixtureCoreRepository.findWithApiSportsByUid(fixtureCoreUid)
 
     private fun resultIfAlreadyAvailable(fixtureCore: FixtureCore): DomainResult<String, DomainFail>? {
         if (!fixtureCore.available) {

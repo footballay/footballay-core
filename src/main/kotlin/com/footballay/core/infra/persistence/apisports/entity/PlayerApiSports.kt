@@ -9,7 +9,7 @@ import java.time.LocalDate
 @Table(
     name = "player_apisports",
 )
-data class PlayerApiSports(
+open class PlayerApiSports(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
@@ -32,20 +32,15 @@ data class PlayerApiSports(
     var photo: String? = null, // API 응답의 player.photo
     var preventUpdate: Boolean = false,
 ) {
-    override fun equals(other: Any?): Boolean {
+    final override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other == null) return false
-        val oEffectiveClass =
-            if (other is HibernateProxy) other.hibernateLazyInitializer.persistentClass else other.javaClass
-        val thisEffectiveClass =
-            if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass else this.javaClass
-        if (thisEffectiveClass != oEffectiveClass) return false
-        other as PlayerApiSports
-
-        return id != null && id == other.id
+        if (other !is PlayerApiSports) return false
+        val thisId = if (this is HibernateProxy) hibernateLazyInitializer.internalIdentifier else id
+        val otherId = if (other is HibernateProxy) other.hibernateLazyInitializer.internalIdentifier else other.id
+        return thisId != null && thisId == otherId
     }
 
-    override fun hashCode(): Int = if (this is HibernateProxy) this.hibernateLazyInitializer.persistentClass.hashCode() else javaClass.hashCode()
+    final override fun hashCode(): Int = PlayerApiSports::class.java.hashCode()
 
     override fun toString(): String = "PlayerApiSports(id=$id, apiId=$apiId, name=$name, firstname=$firstname, lastname=$lastname, age=$age, birthPlace=$birthPlace, birthDate=$birthDate, birthCountry=$birthCountry, nationality=$nationality, height=$height, weight=$weight, number=$number, position=$position, photo=$photo, preventUpdate=$preventUpdate)"
 }

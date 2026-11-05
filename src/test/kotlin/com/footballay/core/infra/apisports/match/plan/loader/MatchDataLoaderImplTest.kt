@@ -4,8 +4,13 @@ import com.footballay.core.MatchEntities
 import com.footballay.core.MatchEntityGenerator
 import com.footballay.core.infra.apisports.match.plan.context.MatchEntityBundle
 import com.footballay.core.infra.apisports.match.plan.context.MatchPlayerContext
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayer
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayerStatistics
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchEventRepository
+import com.footballay.core.querycapture.SqlCaptureStatementInspector
+import com.footballay.core.querycapture.SqlCaptureTestConfiguration
 import com.footballay.core.logger
+import jakarta.persistence.EntityManager
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -19,9 +24,15 @@ import org.springframework.transaction.annotation.Transactional
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
-@Import(MatchEntityGenerator::class)
+@Import(MatchEntityGenerator::class, SqlCaptureTestConfiguration::class)
 @DisplayName("MatchDataLoaderImpl 테스트")
 class MatchDataLoaderImplTest {
+    @Autowired
+    private lateinit var em: EntityManager
+
+    @Autowired
+    private lateinit var inspector: SqlCaptureStatementInspector
+
     @Autowired
     private lateinit var apiSportsMatchEventRepository: ApiSportsMatchEventRepository
     private val log = logger()
@@ -120,6 +131,43 @@ class MatchDataLoaderImplTest {
             if (entityBundle.homeTeamStat != null) "홈팀O" else "홈팀X",
             entityBundle.getAllPlayerStats().size,
         )
+    }
+
+    @Test
+    @DisplayName("이벤트에만 등장하는 매치 선수의 통계도 함께 로드합니다")
+    fun eventOnlyPlayerStatisticsAreLoaded() {
+        val player = ApiSportsMatchPlayer(
+            matchPlayerUid = "event-only-stat-player",
+            name = "Event-only player",
+            position = "Unknown",
+            substitute = false,
+            matchTeam = null,
+        )
+        em.persist(player)
+        matchEntities.matchEvents.first().assist = player
+        em.persist(ApiSportsMatchPlayerStatistics(matchPlayer = player, minutesPlayed = 10))
+        em.flush()
+        em.clear()
+
+        val bundle = MatchEntityBundle.createEmpty()
+        matchDataLoader.loadContext(matchEntities.fixtureApiSports.apiId, MatchPlayerContext(), bundle)
+
+        assertThat(bundle.allMatchPlayers.values).contains(player)
+        assertThat(bundle.playerStatsByMatchPlayerUid[player.matchPlayerUid]?.minutesPlayed).isEqualTo(10)
+    }
+
+    @Test
+    @DisplayName("선수 수와 관계없이 통계는 홈·원정·이벤트 조회 SQL에 포함됩니다")
+    fun playerStatisticsDoNotTriggerPerPlayerQueries() {
+        em.flush()
+        em.clear()
+        inspector.clear()
+
+        matchDataLoader.loadContext(matchEntities.fixtureApiSports.apiId, MatchPlayerContext(), MatchEntityBundle.createEmpty())
+
+        val statQueries = inspector.captured().filter { "apisports_match_player_stat" in it }
+        assertThat(statQueries).hasSize(3)
+        assertThat(statQueries).allMatch { "join apisports_match_player_stat" in it }
     }
 
     @Test
@@ -292,6 +340,8 @@ class MatchDataLoaderImplTest {
         val fixtureApiId = matchEntities.fixtureApiSports.apiId
         val playerContext = MatchPlayerContext()
         val entityBundle = MatchEntityBundle.createEmpty()
+        em.flush()
+        em.clear()
 
         // when
         matchDataLoader.loadContext(fixtureApiId, playerContext, entityBundle)
@@ -299,19 +349,19 @@ class MatchDataLoaderImplTest {
         // then
         // 홈팀 통계 검증
         assertThat(entityBundle.homeTeamStat).isNotNull()
-        assertThat(entityBundle.homeTeamStat?.matchTeam?.id).isEqualTo(matchEntities.homeMatchTeam.id)
+        assertThat(entityBundle.homeTeam?.id).isEqualTo(matchEntities.homeMatchTeam.id)
         assertThat(entityBundle.homeTeamStat?.totalShots).isEqualTo(8)
         assertThat(entityBundle.homeTeamStat?.ballPossession).isEqualTo("55%")
         assertThat(entityBundle.homeTeamStat?.totalPasses).isEqualTo(450)
 
         // 원정팀 통계 검증
         assertThat(entityBundle.awayTeamStat).isNotNull()
-        assertThat(entityBundle.awayTeamStat?.matchTeam?.id).isEqualTo(matchEntities.awayMatchTeam.id)
+        assertThat(entityBundle.awayTeam?.id).isEqualTo(matchEntities.awayMatchTeam.id)
         assertThat(entityBundle.awayTeamStat?.totalShots).isEqualTo(8)
         assertThat(entityBundle.awayTeamStat?.ballPossession).isEqualTo("55%")
         assertThat(entityBundle.awayTeamStat?.totalPasses).isEqualTo(450)
 
-        // 팀 통계와 팀 간의 양방향 관계 확인
+        // owning 방향의 팀→통계 연결 확인
         assertThat(entityBundle.homeTeam?.teamStatistics?.id).isEqualTo(entityBundle.homeTeamStat?.id)
         assertThat(entityBundle.awayTeam?.teamStatistics?.id).isEqualTo(entityBundle.awayTeamStat?.id)
 
@@ -348,14 +398,13 @@ class MatchDataLoaderImplTest {
             assertThat(playerStats.passesTotal).isEqualTo(45)
             assertThat(playerStats.passesAccuracy).isEqualTo(85)
 
-            // 선수 통계와 선수 간의 양방향 관계 확인
-            assertThat(playerStats.matchPlayer?.statistics?.id).isEqualTo(playerStats.id)
+            assertThat(entityBundle.getPlayerStats(key)?.id).isEqualTo(playerStats.id)
         }
 
         // 모든 선수가 통계를 가지고 있는지 확인
         val playersWithStats =
-            entityBundle.allMatchPlayers.filter { (_, player) ->
-                player.statistics != null
+            entityBundle.allMatchPlayers.filter { (key, _) ->
+                entityBundle.getPlayerStats(key) != null
             }
         assertThat(playersWithStats).hasSize(entityBundle.getAllPlayerStats().size)
 

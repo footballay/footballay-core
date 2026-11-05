@@ -1,11 +1,16 @@
 package com.footballay.core.infra.query
 
+import com.footballay.core.infra.persistence.apisports.read.FixtureInfoTeamsRow
+import com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow
+import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
+import com.footballay.core.infra.persistence.core.entity.TeamCore
 import com.footballay.core.common.result.DomainFail
 import com.footballay.core.common.result.DomainResult
 import com.footballay.core.domain.model.match.*
 import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchEvent
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayer
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayerStatistics
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
 import com.footballay.core.infra.persistence.apisports.repository.FixtureApiSportsRepository
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchEventRepository
@@ -38,14 +43,14 @@ class MatchDataQueryServiceImpl(
      * @return DomainResult<FixtureInfoModel>
      */
     override fun getFixtureInfo(fixtureUid: String, zoneId: ZoneId): DomainResult<FixtureInfoModel, DomainFail> {
-        val fixture =
-            fixtureApiSportsRepository.findByCoreUid(fixtureUid)
+        val fixtureWithTeams =
+            fixtureApiSportsRepository.findInfoWithTeamsByCoreUid(fixtureUid)
                 ?: return DomainResult.Fail(DomainFail.NotFound("Fixture", fixtureUid))
 
         log.debug("Fetched fixture info for uid: {}", fixtureUid)
 
         return try {
-            val model = toFixtureInfoModel(fixture, zoneId)
+            val model = toFixtureInfoModel(fixtureWithTeams, zoneId)
             DomainResult.Success(model)
         } catch (e: Exception) {
             log.error("Error converting fixture to domain model for uid: {}", fixtureUid, e)
@@ -92,10 +97,9 @@ class MatchDataQueryServiceImpl(
      * @return DomainResult<FixtureEventsModel>
      */
     override fun getFixtureEvents(fixtureUid: String): DomainResult<FixtureEventsModel, DomainFail> {
-        // FixtureApiSports를 먼저 조회해서 존재 여부 확인
-        val fixture =
-            fixtureApiSportsRepository.findByCoreUid(fixtureUid)
-                ?: return DomainResult.Fail(DomainFail.NotFound("Fixture", fixtureUid))
+        if (!fixtureApiSportsRepository.existsByCore_Uid(fixtureUid)) {
+            return DomainResult.Fail(DomainFail.NotFound("Fixture", fixtureUid))
+        }
 
         val events = matchEventRepository.findByFixtureUidOrderBySequenceAsc(fixtureUid)
         log.debug("Fetched {} events for fixture uid: {}", events.size, fixtureUid)
@@ -159,13 +163,13 @@ class MatchDataQueryServiceImpl(
                 ?: return DomainResult.Fail(DomainFail.NotFound("Fixture", fixtureUid))
 
         // 홈/원정 팀 통계 조회
-        val homeTeam = fixtureApiSportsRepository.findFixtureHomeTeamLineupAndStatsByUid(fixtureUid)
-        val awayTeam = fixtureApiSportsRepository.findFixtureAwayTeamLineupAndStatsByUid(fixtureUid)
+        val homeRows = fixtureApiSportsRepository.findFixtureHomeTeamLineupAndStatsByUid(fixtureUid)
+        val awayRows = fixtureApiSportsRepository.findFixtureAwayTeamLineupAndStatsByUid(fixtureUid)
 
         log.debug("Fetched statistics for fixture uid: {}", fixtureUid)
 
         return try {
-            val model = toFixtureStatisticsModel(fixtureUid, fixture, homeTeam, awayTeam)
+            val model = toFixtureStatisticsModel(fixtureUid, fixture, homeRows, awayRows)
             DomainResult.Success(model)
         } catch (e: Exception) {
             log.error("Error converting fixture statistics for uid: {}", fixtureUid, e)
@@ -182,14 +186,22 @@ class MatchDataQueryServiceImpl(
     // Entity → Domain Model 변환 메서드
     // ===========================
 
-    private fun toFixtureInfoModel(fixture: FixtureApiSports, zoneId: ZoneId): FixtureInfoModel {
-        val core = fixture.core ?: throw IllegalArgumentException("FixtureCore is null")
+    private data class TeamCoreAndBackbone(
+        val core: TeamCore?,
+        val backbone: TeamApiSports?,
+    )
+
+    private fun toFixtureInfoModel(row: FixtureInfoTeamsRow, zoneId: ZoneId): FixtureInfoModel {
+        val fixture = row.fixture
+        val core = row.core
         val season = fixture.season ?: throw IllegalArgumentException("Season is null")
         val league = season.leagueApiSports ?: throw IllegalArgumentException("League is null")
         val leagueCore = league.leagueCore ?: throw IllegalArgumentException("LeagueCore is null")
 
-        val homeTeamCore = core.homeTeam
-        val awayTeamCore = core.awayTeam
+        val home = TeamCoreAndBackbone(row.homeCore, row.homeBackbone)
+        val away = TeamCoreAndBackbone(row.awayCore, row.awayBackbone)
+        val homeTeamCore = home.core
+        val awayTeamCore = away.core
 
         val dateStr =
             fixture.date
@@ -213,7 +225,7 @@ class MatchDataQueryServiceImpl(
                     FixtureInfoModel.TeamInfo(
                         id = 0L, // Deprecated: PK 노출 방지
                         name = teamCore.name,
-                        logo = teamCore.teamApiSports?.logo,
+                        logo = home.backbone?.logo,
                         teamUid = teamCore.uid,
                         playerColor =
                             fixture.homeTeam?.playerColor?.let {
@@ -226,7 +238,7 @@ class MatchDataQueryServiceImpl(
                     FixtureInfoModel.TeamInfo(
                         id = 0L, // Deprecated: PK 노출 방지
                         name = teamCore.name,
-                        logo = teamCore.teamApiSports?.logo,
+                        logo = away.backbone?.logo,
                         teamUid = teamCore.uid,
                         playerColor =
                             fixture.awayTeam?.playerColor?.let {
@@ -380,8 +392,8 @@ class MatchDataQueryServiceImpl(
     private fun toFixtureStatisticsModel(
         fixtureUid: String,
         fixture: FixtureApiSports,
-        homeTeamFixture: FixtureApiSports?,
-        awayTeamFixture: FixtureApiSports?,
+        homeRows: List<FixturePlayerStatisticsRow>,
+        awayRows: List<FixturePlayerStatisticsRow>,
     ): FixtureStatisticsModel {
         val status = fixture.status
 
@@ -392,15 +404,21 @@ class MatchDataQueryServiceImpl(
                     elapsed = status?.elapsed,
                     status = status?.shortStatus ?: "",
                 ),
-            home = homeTeamFixture?.homeTeam?.let { toTeamWithStatistics(it) },
-            away = awayTeamFixture?.awayTeam?.let { toTeamWithStatistics(it) },
+            home = homeRows.firstOrNull()?.fixture?.homeTeam?.let { toTeamWithStatistics(it, homeRows) },
+            away = awayRows.firstOrNull()?.fixture?.awayTeam?.let { toTeamWithStatistics(it, awayRows) },
         )
     }
 
-    private fun toTeamWithStatistics(matchTeam: ApiSportsMatchTeam): FixtureStatisticsModel.TeamWithStatistics {
+    private fun toTeamWithStatistics(
+        matchTeam: ApiSportsMatchTeam,
+        rows: List<FixturePlayerStatisticsRow>,
+    ): FixtureStatisticsModel.TeamWithStatistics {
         val teamApiSports = matchTeam.teamApiSports
         val teamCore = teamApiSports?.teamCore
         val teamStats = matchTeam.teamStatistics
+        val playerStatsByUid = rows.mapNotNull { row ->
+            if (row.player != null && row.statistics != null) row.player.matchPlayerUid to row.statistics else null
+        }.toMap()
 
         return FixtureStatisticsModel.TeamWithStatistics(
             team =
@@ -442,12 +460,15 @@ class MatchDataQueryServiceImpl(
                         } ?: emptyList(),
                 ),
             playerStatistics =
-                matchTeam.players.mapNotNull { toPlayerWithStatistics(it) },
+                matchTeam.players.mapNotNull { toPlayerWithStatistics(it, playerStatsByUid) },
         )
     }
 
-    private fun toPlayerWithStatistics(matchPlayer: ApiSportsMatchPlayer): FixtureStatisticsModel.PlayerWithStatistics? {
-        val playerStats = matchPlayer.statistics ?: return null
+    private fun toPlayerWithStatistics(
+        matchPlayer: ApiSportsMatchPlayer,
+        playerStatsByUid: Map<String, ApiSportsMatchPlayerStatistics>,
+    ): FixtureStatisticsModel.PlayerWithStatistics? {
+        val playerStats = playerStatsByUid[matchPlayer.matchPlayerUid] ?: return null
         val playerApiSports = matchPlayer.playerApiSports
         val playerCore = playerApiSports?.playerCore
 

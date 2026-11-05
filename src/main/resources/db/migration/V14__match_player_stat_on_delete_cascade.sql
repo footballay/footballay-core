@@ -1,0 +1,6 @@
+ALTER TABLE apisports_match_player_stat
+    DROP CONSTRAINT FK_APISPORTS_MATCH_PLAYER_STAT_ON_MATCH_PLAYER;
+
+ALTER TABLE apisports_match_player_stat
+    ADD CONSTRAINT FK_APISPORTS_MATCH_PLAYER_STAT_ON_MATCH_PLAYER
+        FOREIGN KEY (match_player_id) REFERENCES apisports_match_player (id) ON DELETE CASCADE;

@@ -1,5 +1,7 @@
 package com.footballay.core.infra.apisports.match.plan
 
+import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
+import com.footballay.core.infra.persistence.core.entity.TeamCore
 import com.footballay.core.infra.apisports.match.ApiSportsMatchEntitySyncFacadeImpl
 import com.footballay.core.infra.apisports.match.FullMatchSyncDto
 import com.footballay.core.infra.apisports.shared.fetch.impl.ApiSportsV3MockFetcher
@@ -161,7 +163,7 @@ class MatchApiSportsSyncerIntegrationTest {
         log.info("저장된 FixtureApiSports 개수: ${savedFixtures.size}")
         savedFixtures.forEach { fixture ->
             log.info(
-                "Fixture: ID=${fixture.apiId}, Home=${fixture.core?.homeTeam?.teamApiSports?.apiId}, Away=${fixture.core?.awayTeam?.teamApiSports?.apiId}, Date=${fixture.date}",
+                "Fixture: ID=${fixture.apiId}, Home=${providerFor(fixture.core?.homeTeam)?.apiId}, Away=${providerFor(fixture.core?.awayTeam)?.apiId}, Date=${fixture.date}",
             )
         }
 
@@ -249,4 +251,6 @@ class MatchApiSportsSyncerIntegrationTest {
 
         log.info("테스트 데이터 초기화 완료")
     }
+    private fun providerFor(core: TeamCore?): TeamApiSports? =
+        core?.let { teamApiSportsRepository.findTeamApiSportsInTeamCore(listOf(it)).singleOrNull() }
 }

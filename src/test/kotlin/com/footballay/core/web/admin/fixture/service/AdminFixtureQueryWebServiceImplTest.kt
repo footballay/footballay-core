@@ -41,10 +41,12 @@ import java.time.temporal.ChronoUnit
  * @author Footballay Core Team
  */
 @SpringBootTest
+@org.springframework.context.annotation.Import(com.footballay.core.querycapture.SqlCaptureTestConfiguration::class)
 @ActiveProfiles("test")
 @Transactional
 @WithMockUser(roles = ["ADMIN"])
 class AdminFixtureQueryWebServiceImplTest {
+    @Autowired private lateinit var inspector: com.footballay.core.querycapture.SqlCaptureStatementInspector
     val log = logger()
 
     @Autowired
@@ -149,6 +151,7 @@ class AdminFixtureQueryWebServiceImplTest {
 
         em.flush()
         em.clear()
+        inspector.clear()
 
         // When
         val result = adminFixtureQueryWebService.findFixturesByLeague(testLeagueApiSports.apiId, targetDate, "exact", ZoneOffset.UTC)
@@ -156,6 +159,8 @@ class AdminFixtureQueryWebServiceImplTest {
         // Then
         assertThat(result).hasSize(3)
         assertThat(result.map { it.uid }).containsExactlyInAnyOrder("f1", "f2", "f3")
+        assertThat(inspector.captured().filter { Regex("where .*team_core_id=\\?").containsMatchIn(it) }).isEmpty()
+        assertThat(inspector.captured().count { it.contains("join team_apisports") }).isEqualTo(1)
         log.info("Exact mode: Found ${result.size} fixtures on target date")
     }
 

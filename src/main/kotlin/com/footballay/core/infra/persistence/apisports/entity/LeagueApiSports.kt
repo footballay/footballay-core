@@ -7,7 +7,7 @@ import jakarta.persistence.*
 @Table(
     name = "league_apisports",
 )
-data class LeagueApiSports(
+open class LeagueApiSports(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
@@ -25,10 +25,11 @@ data class LeagueApiSports(
     var currentSeason: Int? = null,
     @Column(nullable = false)
     var available: Boolean = false,
+    /** Hibernate가 구체적인 컬렉션 원소 타입을 인식하도록 JVM wildcard를 억제합니다. */
     @OneToMany(
         mappedBy = "leagueApiSports",
         cascade = [],
         fetch = FetchType.LAZY,
     )
-    var seasons: List<LeagueApiSportsSeason> = emptyList(),
+    var seasons: List<@JvmSuppressWildcards LeagueApiSportsSeason> = emptyList(),
 )

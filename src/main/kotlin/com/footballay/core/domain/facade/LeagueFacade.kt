@@ -34,11 +34,10 @@ class LeagueFacade(
     @Transactional(readOnly = true)
     fun getAvailableLeagues(): DomainResult<List<LeagueModel>, DomainFail> {
         try {
-            val leagues = leagueCoreRepository.findByAvailableTrue()
+            val leagues = leagueApiSportsRepository.findByAvailableCore()
             val leagueModels =
-                leagues.mapNotNull { core ->
-                    val api = core.apiSportsLeague ?: return@mapNotNull null
-                    mapper.toLeagueModel(core, api)
+                leagues.map { api ->
+                    mapper.toLeagueModel(requireNotNull(api.leagueCore), api)
                 }
             return DomainResult.Success(leagueModels)
         } catch (ex: Exception) {

@@ -16,6 +16,12 @@ import com.footballay.core.infra.persistence.core.repository.LeagueCoreRepositor
 import com.footballay.core.infra.persistence.core.repository.LeagueSeasonCoreRepository
 import com.footballay.core.infra.persistence.core.repository.TeamCoreRepository
 import com.footballay.core.logger
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import org.slf4j.LoggerFactory
 import jakarta.persistence.EntityManager
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.*
@@ -62,7 +68,12 @@ class FixtureApiSportsWithCoreSyncerIntegrationTest {
     @DisplayName("기존 Core UID 소비와 요청 시즌 연결에 추가 SELECT가 발생하지 않는다")
     fun loadExistingCoreWithoutLazySelects(byIds: Boolean) {
         val ids = listOf(90101L, 90102L)
-        fixtureApiSportsSyncer.saveFixturesOfLeague(TEST_LEAGUE_API_ID, ids.map { createBasicFixtureDto(it) })
+        val savedFixtures = fixtureApiSportsSyncer.saveFixturesOfLeague(TEST_LEAGUE_API_ID, ids.map { createBasicFixtureDto(it) })
+        savedFixtures.values.forEach {
+            it.homeTeam = ApiSportsMatchTeam(teamApiSports = teamApiSportsRepository.findByApiId(TEST_ARSENAL_API_ID))
+            it.awayTeam = ApiSportsMatchTeam(teamApiSports = teamApiSportsRepository.findByApiId(TEST_CHELSEA_API_ID))
+        }
+        fixtureApiSportsRepository.saveAll(savedFixtures.values)
         if (byIds) {
             createTargetSeason(sameLeague = true)
             fixtureApiSportsSyncer.saveFixturesOfLeague(
@@ -88,6 +99,8 @@ class FixtureApiSportsWithCoreSyncerIntegrationTest {
         assertThat(fixtures).hasSize(2)
         fixtures.forEach {
             assertThat(it.core!!.uid).isNotBlank()
+            assertEquals(TEST_ARSENAL_API_ID, it.homeTeam!!.getTeamApiId())
+            assertEquals(TEST_CHELSEA_API_ID, it.awayTeam!!.getTeamApiId())
             it.season = target
             it.core!!.leagueSeason = targetCore
         }
@@ -287,6 +300,124 @@ class FixtureApiSportsWithCoreSyncerIntegrationTest {
         assertEquals(providerSeasonId, repeated.season!!.id)
         assertEquals(coreCount, leagueSeasonCoreRepository.count())
         assertEquals(providerCount, leagueApiSportsSeasonRepository.count())
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    @DisplayName("일정 팀 변경은 요청의 Core 팀을 반영하며 기존 매치 팀 조회에 의존하지 않는다")
+    fun updateScheduleTeamsFromRequest(hasMatchTeam: Boolean) {
+        val initial = createBasicFixtureDto(90201L)
+        val fixture = fixtureApiSportsSyncer.saveFixturesOfLeague(TEST_LEAGUE_API_ID, listOf(initial)).getValue(90201L)
+        if (hasMatchTeam) {
+            fixture.homeTeam = ApiSportsMatchTeam(teamApiSports = teamApiSportsRepository.findByApiId(TEST_ARSENAL_API_ID))
+            fixture.awayTeam = ApiSportsMatchTeam(teamApiSports = teamApiSportsRepository.findByApiId(TEST_CHELSEA_API_ID))
+            fixtureApiSportsRepository.saveAndFlush(fixture)
+        }
+        val coreUid = fixture.core!!.uid
+        em.flush()
+        em.clear()
+        inspector.clear()
+        val changed = createBasicFixtureDto(90201L, TEST_CHELSEA_API_ID, TEST_ARSENAL_API_ID)
+        fixtureApiSportsSyncer.saveFixturesOfLeague(TEST_LEAGUE_API_ID, listOf(changed))
+        em.flush()
+        val syncSql = inspector.captured()
+        assertThat(syncSql.filter { it.lowercase().startsWith("update fixture_core ") }).hasSize(1)
+        assertThat(syncSql.filter { it.lowercase().contains("from apisports_match_team ") }).isEmpty()
+        em.clear()
+        val saved = fixtureApiSportsRepository.findByApiId(90201L)!!
+        assertEquals(coreUid, saved.core!!.uid)
+        assertEquals("chelsea-2024", saved.core!!.homeTeam!!.uid)
+        assertEquals("arsenal-2024", saved.core!!.awayTeam!!.uid)
+        if (hasMatchTeam) {
+            assertEquals(TEST_ARSENAL_API_ID, saved.homeTeam!!.getTeamApiId())
+            assertEquals(TEST_CHELSEA_API_ID, saved.awayTeam!!.getTeamApiId())
+        } else {
+            assertNull(saved.homeTeam)
+            assertNull(saved.awayTeam)
+        }
+        em.clear()
+        inspector.clear()
+        fixtureApiSportsSyncer.saveFixturesOfLeague(TEST_LEAGUE_API_ID, listOf(changed))
+        em.flush()
+        assertThat(inspector.captured().filter { it.lowercase().startsWith("update fixture_core ") }).isEmpty()
+    }
+
+    @Test
+    @DisplayName("미정 팀이 확정되면 매치 팀 생성 없이 Core 참가 팀을 연결한다")
+    fun bindConfirmedScheduleTeamsWithoutMatchData() {
+        val initial = createBasicFixtureDto(90202L).copy(homeTeam = null, awayTeam = null)
+        fixtureApiSportsSyncer.saveFixturesOfLeague(TEST_LEAGUE_API_ID, listOf(initial))
+        em.flush()
+        em.clear()
+        fixtureApiSportsSyncer.saveFixturesOfLeague(TEST_LEAGUE_API_ID, listOf(createBasicFixtureDto(90202L)))
+        em.flush()
+        em.clear()
+        val saved = fixtureApiSportsRepository.findByApiId(90202L)!!
+        assertEquals("arsenal-2024", saved.core!!.homeTeam!!.uid)
+        assertEquals("chelsea-2024", saved.core!!.awayTeam!!.uid)
+        assertNull(saved.homeTeam)
+        assertNull(saved.awayTeam)
+    }
+
+    @Test
+    @DisplayName("갱신 금지 경기는 요청 팀이 달라도 기존 Core 참가 팀을 보존한다")
+    fun preserveScheduleTeamsWhenUpdatePrevented() {
+        val fixture = fixtureApiSportsSyncer.saveFixturesOfLeague(
+            TEST_LEAGUE_API_ID, listOf(createBasicFixtureDto(90203L)),
+        ).getValue(90203L)
+        fixture.preventUpdate = true
+        em.flush()
+        em.clear()
+        fixtureApiSportsSyncer.saveFixturesOfLeague(
+            TEST_LEAGUE_API_ID, listOf(createBasicFixtureDto(90203L, TEST_CHELSEA_API_ID, TEST_ARSENAL_API_ID)),
+        )
+        em.flush()
+        em.clear()
+        val saved = fixtureApiSportsRepository.findByApiId(90203L)!!
+        assertEquals("arsenal-2024", saved.core!!.homeTeam!!.uid)
+        assertEquals("chelsea-2024", saved.core!!.awayTeam!!.uid)
+        assertNull(saved.homeTeam)
+        assertNull(saved.awayTeam)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["matching", "changed", "missing-provider", "prevented", "unknown-request", "no-match"])
+    @DisplayName("저장된 매치 팀과 갱신할 일정 팀이 불일치할 때만 ERROR로 알린다")
+    fun logScheduleMatchTeamMismatch(state: String) {
+        val fixture = fixtureApiSportsSyncer.saveFixturesOfLeague(
+            TEST_LEAGUE_API_ID, listOf(createBasicFixtureDto(90204L)),
+        ).getValue(90204L)
+        if (state != "no-match") {
+            fixture.homeTeam = ApiSportsMatchTeam(
+                teamApiSports = if (state == "missing-provider") null else teamApiSportsRepository.findByApiId(TEST_ARSENAL_API_ID),
+            )
+        }
+        fixture.preventUpdate = state == "prevented"
+        fixtureApiSportsRepository.saveAndFlush(fixture)
+        em.clear()
+        val request = when (state) {
+            "changed", "prevented" -> createBasicFixtureDto(90204L, TEST_CHELSEA_API_ID)
+            "unknown-request" -> createBasicFixtureDto(90204L).copy(homeTeam = null)
+            else -> createBasicFixtureDto(90204L)
+        }
+        val logger = LoggerFactory.getLogger(FixtureApiSportsWithCoreSyncer::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>().also { it.start(); logger.addAppender(it) }
+        inspector.clear()
+        try {
+            fixtureApiSportsSyncer.saveFixturesOfLeague(TEST_LEAGUE_API_ID, listOf(request))
+            em.flush()
+        } finally {
+            logger.detachAppender(appender)
+            appender.stop()
+        }
+        val errors = appender.list.filter { it.level == Level.ERROR && it.formattedMessage.startsWith("Schedule/match team mismatch:") }
+        if (state in listOf("changed", "missing-provider", "unknown-request")) {
+            assertThat(errors).hasSize(1)
+            assertThat(errors.single().formattedMessage).contains("fixtureApiId=90204", "side=home", "fixtureUid=", "storedTeamApiId=", "requestedTeamApiId=")
+        } else {
+            assertThat(errors).isEmpty()
+        }
+        assertThat(inspector.captured().filter { it.lowercase().contains("from apisports_match_team ") }).isEmpty()
     }
 
     val log = logger()
@@ -522,9 +653,7 @@ class FixtureApiSportsWithCoreSyncerIntegrationTest {
 
     private fun clearAllTestData() {
         TransactionTemplate(transactionManager).executeWithoutResult {
-            // fetch된 역참조가 삭제된 provider를 계속 가리키지 않도록 양쪽을 정리합니다.
             val fixtures = fixtureApiSportsRepository.findAll()
-            fixtures.forEach { it.core?.apiSports = null }
             fixtureApiSportsRepository.deleteAll(fixtures)
             em.flush()
             em.clear()
@@ -533,9 +662,7 @@ class FixtureApiSportsWithCoreSyncerIntegrationTest {
             leagueApiSportsSeasonRepository.deleteAll()
             teamApiSportsRepository.deleteAll()
             teamCoreRepository.deleteAll()
-            val providerLeagues = leagueApiSportsRepository.findAll()
-            providerLeagues.forEach { it.leagueCore?.apiSportsLeague = null }
-            leagueApiSportsRepository.deleteAll(providerLeagues)
+            leagueApiSportsRepository.deleteAll(leagueApiSportsRepository.findAll())
             em.flush()
             em.clear()
             leagueSeasonCoreRepository.deleteAll()

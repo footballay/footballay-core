@@ -1,7 +1,7 @@
 package com.footballay.core.infra.apisports.match.plan.loader
 
-import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
-import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayerStatistics
+import com.footballay.core.infra.persistence.apisports.read.FixturePlayerStatisticsRow
 import com.footballay.core.infra.persistence.apisports.repository.FixtureApiSportsRepository
 import com.footballay.core.logger
 import org.springframework.stereotype.Service
@@ -28,24 +28,40 @@ class MatchEntityQueryServiceImpl(
     /**
      * Home Team + Team Statistics + Players + Player Statistics 조회
      */
-    override fun loadHomeTeamWithPlayersAndStats(fixtureApiId: Long): ApiSportsMatchTeam? {
+    override fun loadHomeTeamWithPlayersAndStats(fixtureApiId: Long): LoadedMatchTeam? {
         log.debug("Loading home team with players and stats for fixtureApiId={}", fixtureApiId)
-        return fixtureRepository.findFixtureHomeTeamLineupAndStats(fixtureApiId)?.homeTeam
+        val rows = fixtureRepository.findFixtureHomeTeamLineupAndStats(fixtureApiId)
+        return rows.firstOrNull()?.let { LoadedMatchTeam(it.fixture.homeTeam, playerStatsByUid(rows)) }
     }
 
     /**
      * Away Team + Team Statistics + Players + Player Statistics 조회
      */
-    override fun loadAwayTeamWithPlayersAndStats(fixtureApiId: Long): ApiSportsMatchTeam? {
+    override fun loadAwayTeamWithPlayersAndStats(fixtureApiId: Long): LoadedMatchTeam? {
         log.debug("Loading away team with players and stats for fixtureApiId={}", fixtureApiId)
-        return fixtureRepository.findFixtureAwayTeamLineupAndStats(fixtureApiId)?.awayTeam
+        val rows = fixtureRepository.findFixtureAwayTeamLineupAndStats(fixtureApiId)
+        return rows.firstOrNull()?.let { LoadedMatchTeam(it.fixture.awayTeam, playerStatsByUid(rows)) }
     }
 
     /**
      * Fixture 핵심 데이터 + Events 조회
      */
-    override fun loadFixtureWithEvents(fixtureApiId: Long): FixtureApiSports? {
+    override fun loadFixtureWithEvents(fixtureApiId: Long): LoadedMatchEvents? {
         log.debug("Loading fixture with events for fixture: {}", fixtureApiId)
-        return fixtureRepository.findEventsByFixtureApiId(fixtureApiId)
+        val rows = fixtureRepository.findEventsByFixtureApiId(fixtureApiId)
+        return rows.firstOrNull()?.let { first ->
+            val playerStatsByUid = buildMap {
+                rows.forEach { row ->
+                    if (row.player != null && row.playerStatistics != null) put(row.player.matchPlayerUid, row.playerStatistics)
+                    if (row.assist != null && row.assistStatistics != null) put(row.assist.matchPlayerUid, row.assistStatistics)
+                }
+            }
+            LoadedMatchEvents(first.fixture, playerStatsByUid)
+        }
     }
+
+    private fun playerStatsByUid(rows: List<FixturePlayerStatisticsRow>): Map<String, ApiSportsMatchPlayerStatistics> =
+        rows.mapNotNull { row ->
+            if (row.player != null && row.statistics != null) row.player.matchPlayerUid to row.statistics else null
+        }.toMap()
 }

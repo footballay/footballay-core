@@ -25,6 +25,42 @@ import java.util.Date
 
 @ExtendWith(MockitoExtension::class)
 class MatchJobRegistrarTest {
+    @Test
+    fun cleanupDistinguishesAbsenceFromFailureAndCanBeRetried() {
+        val key = MatchJobKeyFactory.jobKey(MatchJobIdentity(MatchJobOwner.MATCHCOLLECT, MatchJobPhase.LIVE, "league", "fixture"))
+        var failOnce = true
+        whenever(scheduler.deleteJob(any())).thenAnswer { invocation ->
+            if (invocation.getArgument<JobKey>(0) == key && failOnce) {
+                failOnce = false
+                throw org.quartz.SchedulerException("unavailable")
+            }
+            false
+        }
+        val registrar = MatchJobRegistrar(scheduler)
+
+        val failed = registrar.cleanupFixtureJobs("league", "fixture")
+        assertThat(failed.failedKeys).containsExactly(key)
+        assertThat(failed.deleted).isZero()
+        val retried = registrar.cleanupFixtureJobs("league", "fixture")
+        assertThat(retried.failedKeys).isEmpty()
+        assertThat(retried.deleted).isZero()
+    }
+
+    @Test
+    fun cleanupDeletesJobsForEveryOwnerAndPhase() {
+        whenever(scheduler.deleteJob(any())).thenReturn(true)
+
+        val result = MatchJobRegistrar(scheduler).cleanupFixtureJobs("league", "fixture")
+
+        assertThat(result.deleted).isEqualTo(MatchJobOwner.entries.size * MatchJobPhase.entries.size)
+        assertThat(result.failedKeys).isEmpty()
+        MatchJobOwner.entries.forEach { owner ->
+            MatchJobPhase.entries.forEach { phase ->
+                verify(scheduler).deleteJob(MatchJobKeyFactory.jobKey(MatchJobIdentity(owner, phase, "league", "fixture")))
+            }
+        }
+    }
+
     @Mock
     private lateinit var scheduler: Scheduler
 

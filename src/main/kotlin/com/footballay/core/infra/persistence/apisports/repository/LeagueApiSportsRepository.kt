@@ -9,6 +9,14 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface LeagueApiSportsRepository : JpaRepository<LeagueApiSports, Long> {
+    fun existsByLeagueCore_Id(coreId: Long): Boolean
+
+    @Query("SELECT a FROM LeagueApiSports a JOIN FETCH a.leagueCore c WHERE c.available = true")
+    fun findByAvailableCore(): List<LeagueApiSports>
+
+    @Query("SELECT a FROM LeagueApiSports a JOIN FETCH a.leagueCore c WHERE c.id IN :coreIds")
+    fun findByLeagueCoreIds(@Param("coreIds") coreIds: Collection<Long>): List<LeagueApiSports>
+
     // findAllByApiIdIn
     fun findAllByApiIdIn(apiIds: List<Long>): List<LeagueApiSports>
 
@@ -56,6 +64,10 @@ interface LeagueApiSportsRepository : JpaRepository<LeagueApiSports, Long> {
         LEFT JOIN FETCH s.fixtures f
         LEFT JOIN FETCH f.core
         LEFT JOIN FETCH f.venue
+        LEFT JOIN FETCH f.homeTeam homeMatchTeam
+        LEFT JOIN FETCH homeMatchTeam.teamApiSports
+        LEFT JOIN FETCH f.awayTeam awayMatchTeam
+        LEFT JOIN FETCH awayMatchTeam.teamApiSports
         WHERE l.apiId = :apiId AND s.seasonYear = :seasonYear
         """,
     )

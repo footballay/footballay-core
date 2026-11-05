@@ -63,7 +63,7 @@ class FixtureScheduleUpdaterTest {
         val league = linkedLeague(leagueUid = "league-1", leagueApiId = 39L)
         whenever(apiSportsBackboneSyncFacade.syncFixturesOfLeagueWithCurrentSeason(39L))
             .thenReturn(DomainResult.Success(20))
-        whenever(leagueApiSportsRepository.findByApiId(39L)).thenReturn(league.apiSportsLeague)
+        whenever(leagueApiSportsRepository.findByApiId(39L)).thenReturn(providerLeague(league, 39L))
         whenever(availableFixtureJobReconciler.reconcileLeague("league-1")).thenReturn(successResult("league-1"))
         whenever(fixtureMatchCollectStateReconciler.reconcileLeague("league-1")).thenReturn(successResult("league-1"))
         whenever(matchCollectLiveJobReconciler.reconcileLeague("league-1")).thenReturn(successResult("league-1"))
@@ -95,7 +95,7 @@ class FixtureScheduleUpdaterTest {
         val league = linkedLeague(leagueUid = "league-1", leagueApiId = 39L)
         whenever(apiSportsBackboneSyncFacade.syncFixturesOfLeagueWithCurrentSeason(39L))
             .thenReturn(DomainResult.Success(20))
-        whenever(leagueApiSportsRepository.findByApiId(39L)).thenReturn(league.apiSportsLeague)
+        whenever(leagueApiSportsRepository.findByApiId(39L)).thenReturn(providerLeague(league, 39L))
         whenever(availableFixtureJobReconciler.reconcileLeague("league-1")).thenReturn(failedResult("league-1"))
         whenever(fixtureMatchCollectStateReconciler.reconcileLeague("league-1")).thenReturn(successResult("league-1"))
         whenever(matchCollectLiveJobReconciler.reconcileLeague("league-1")).thenReturn(successResult("league-1"))
@@ -124,14 +124,22 @@ class FixtureScheduleUpdaterTest {
 
         whenever(leagueCoreRepository.findByAvailableTrue())
             .thenReturn(listOf(successLeague, warningLeague, failedLeague, skippedLeague))
+        whenever(leagueApiSportsRepository.findByLeagueCoreIds(listOf(39L, 140L, 61L, 4L)))
+            .thenReturn(
+                listOf(
+                    providerLeague(successLeague, 39L),
+                    providerLeague(warningLeague, 140L),
+                    providerLeague(failedLeague, 61L),
+                ),
+            )
         whenever(apiSportsBackboneSyncFacade.syncFixturesOfLeagueWithCurrentSeason(39L))
             .thenReturn(DomainResult.Success(10))
         whenever(apiSportsBackboneSyncFacade.syncFixturesOfLeagueWithCurrentSeason(140L))
             .thenReturn(DomainResult.Success(7))
         whenever(apiSportsBackboneSyncFacade.syncFixturesOfLeagueWithCurrentSeason(61L))
             .thenReturn(DomainResult.Fail(DomainFail.Unknown("provider failed")))
-        whenever(leagueApiSportsRepository.findByApiId(39L)).thenReturn(successLeague.apiSportsLeague)
-        whenever(leagueApiSportsRepository.findByApiId(140L)).thenReturn(warningLeague.apiSportsLeague)
+        whenever(leagueApiSportsRepository.findByApiId(39L)).thenReturn(providerLeague(successLeague, 39L))
+        whenever(leagueApiSportsRepository.findByApiId(140L)).thenReturn(providerLeague(warningLeague, 140L))
         whenever(availableFixtureJobReconciler.reconcileLeague("league-1")).thenReturn(successResult("league-1"))
         whenever(availableFixtureJobReconciler.reconcileLeague("league-2")).thenReturn(warningResult)
         whenever(fixtureMatchCollectStateReconciler.reconcileLeague("league-1")).thenReturn(successResult("league-1"))
@@ -147,6 +155,8 @@ class FixtureScheduleUpdaterTest {
         assertThat(result.skippedLeagues).isEqualTo(1)
         assertThat(result.syncedFixtures).isEqualTo(17)
         assertThat(result.reconcileFailures).containsExactly(warningResult)
+        verify(leagueApiSportsRepository).findByLeagueCoreIds(listOf(39L, 140L, 61L, 4L))
+        verify(leagueApiSportsRepository, never()).findByLeagueCoreId(any())
     }
 
     private fun linkedLeague(
@@ -160,16 +170,16 @@ class FixtureScheduleUpdaterTest {
                 name = "League $leagueUid",
                 available = true,
             )
-        val apiSportsLeague =
-            LeagueApiSports(
-                id = leagueApiId,
-                leagueCore = league,
-                apiId = leagueApiId,
-                name = "League $leagueApiId",
-            )
-        league.apiSportsLeague = apiSportsLeague
         return league
     }
+
+    private fun providerLeague(league: LeagueCore, leagueApiId: Long): LeagueApiSports =
+        LeagueApiSports(
+            id = leagueApiId,
+            leagueCore = league,
+            apiId = leagueApiId,
+            name = "League $leagueApiId",
+        )
 
     private fun successResult(leagueUid: String): ReconcileResult =
         ReconcileResult.empty(

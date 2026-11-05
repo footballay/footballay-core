@@ -19,6 +19,7 @@ import java.time.ZoneOffset
 
 @Service
 class MockLeagueService(
+    private val coreCleanupService: MockCoreCleanupService,
     private val leagueCoreRepository: LeagueCoreRepository,
     private val mockLeagueRepository: MockBackboneLeagueRepository,
     private val leagueSeasonCoreRepository: LeagueSeasonCoreRepository,
@@ -77,11 +78,8 @@ class MockLeagueService(
             return DomainResult.Fail(validationFail("MOCK_LEAGUE_HAS_FIXTURES", "경기를 먼저 삭제해주세요.", "leagueCoreUid"))
         }
 
-        leagueSeasonCoreRepository.deleteAll(leagueSeasonCoreRepository.findAllByLeague(mockLeague.league))
-        leagueSeasonCoreRepository.flush()
-
         mockLeagueRepository.delete(mockLeague)
-        leagueCoreRepository.delete(mockLeague.league)
+        coreCleanupService.deleteLeagueCoreIfMockOnly(mockLeague.league)
 
         return DomainResult.Success(result)
     }

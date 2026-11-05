@@ -101,6 +101,18 @@ class RepositoryFlowTimingTest {
         val output = BenchmarkCaptureOutput.directory("flow")
         val league = "bench-league-000000000001"
         val fixture = "bench-fixture-000000003425"
+        // 외부 API 응답의 팀 ID를 흉내 낸 입력을 측정 전에 준비합니다. 기준은 일정의 Core 참가 팀입니다.
+        val requestedTeamApiIds = TransactionTemplate(transactions).execute {
+            @Suppress("UNCHECKED_CAST")
+            (em.createNativeQuery("""
+                select distinct t.api_id from fixture_api_sports f
+                join league_apisports_season s on s.id=f.season_id
+                join league_apisports l on l.id=s.league_apisports_id
+                join fixture_core c on c.id=f.fixture_core_id
+                join team_apisports t on t.team_core_id=c.home_team_id or t.team_core_id=c.away_team_id
+                where l.api_id=100001 and s.season_year=2026
+            """).resultList as List<Number>).map { it.toLong() }
+        }!!
         val actions: Map<String, () -> Any> = linkedMapOf(
             // Quartz 부작용을 제외하고 reconciler가 소비하는 네 필드의 조회/접근까지 측정합니다.
             "available-read" to { fixtures.findAvailableJobInputsByLeagueUid(league)
@@ -115,7 +127,12 @@ class RepositoryFlowTimingTest {
             "sync-read" to {
                 val l = requireNotNull(leagues.findForFixtureSync(100001L, 2026))
                 val season = l.seasons.first { it.seasonYear == 2026 }
-                val ids = season.fixtures.values.flatMap { listOfNotNull(it.homeTeam?.getTeamApiId(), it.awayTeam?.getTeamApiId()) }.distinct()
+                // 정합성 검사에서 접근하는 필드까지 소비하여 후속 SELECT 유무를 확인합니다.
+                season.fixtures.values.forEach {
+                    it.homeTeam?.getTeamApiId()
+                    it.awayTeam?.getTeamApiId()
+                }
+                val ids = requestedTeamApiIds.distinct()
                 val ts = teams.findAllWithTeamCoreByApiIds(ids)
                 listOf(l.apiId, season.seasonYear, season.leagueSeasonCore?.id,
                     season.fixtures.values.map { listOf(it.apiId, it.core?.uid, it.venue?.id) }.sortedBy { it[0].toString() }, ts.map { it.apiId }.sortedBy { it })
@@ -138,6 +155,9 @@ class RepositoryFlowTimingTest {
                         val result = action()
                         elapsedMs = (System.nanoTime() - started) / 1e6
                         statements = recorder.stop()
+                        if (name == "sync-read") {
+                            check(statements.size == 2) { "Fixture sync read executed ${statements.size} SQL statements" }
+                        }
                         bytes = json.writeValueAsBytes(result)
                     } finally { recorder.stop(); status.setRollbackOnly() }
                 }

@@ -252,7 +252,7 @@ class FixtureApiSportsWithCoreSyncer(
      * [FixtureDataCollection] 사용시, 반드시 주석이나 본 메서드를 참고하여 Eager Fetch 된 연관관계 여부를 확인하세요.
      *
      * 주어진 Fixture dto 들의 `apiId` 와 league 의 `seasonYear` 를 기준으로 [FixtureApiSports] 엔티티를 수집합니다.
-     * 주어진 Fixture dto 들의 `homeTeam.apiId` 및 `awayTeam.apiId` 와 기존에 저장된 league season fixture 들에 담긴 Team 들을 기준으로 [TeamApiSports] 엔티티를 수집합니다.
+     * 요청 Fixture DTO의 홈·원정 팀 API ID로 [TeamApiSports]와 연결된 TeamCore를 수집합니다.
      *
      * 리그는 사전에 저장되어 있어야 하며, 요청 시즌은 리그와 연도로 조회·생성합니다.
      *
@@ -296,19 +296,17 @@ class FixtureApiSportsWithCoreSyncer(
         val fixtures = (fixturesBySeason + extraByIds).distinctBy { it.apiId }
         log.info("Found {} fixtures (league+season merged; extraByIds={})", fixtures.size, extraByIds.size)
 
+        logExistingMatchTeamMismatches(dtos, fixtures)
+
         // Team Entity 수집
-        // 저장된 Fixture 들의 Team 과 Dtos 에 담긴 Team 정보를 모두 수집하여 Team 엔티티 조회
+        // Core 참가 팀 연결에 필요한 엔티티는 요청 DTO의 팀 API ID로만 조회합니다.
         val teamApiIds =
             dtos
                 .flatMap { dto ->
                     listOfNotNull(dto.homeTeam?.apiId, dto.awayTeam?.apiId)
-                }.plus(
-                    fixtures.flatMap { fixture ->
-                        listOfNotNull(fixture.homeTeam?.getTeamApiId(), fixture.awayTeam?.getTeamApiId())
-                    },
-                ).distinct()
+                }.distinct()
         log.info(
-            "Extracted {} team ApiIds from fixtures and DTOs",
+            "Extracted {} team ApiIds from request DTOs",
             teamApiIds.size,
         )
 
@@ -327,6 +325,29 @@ class FixtureApiSportsWithCoreSyncer(
             fixtures = fixtures,
             teams = teams,
         )
+    }
+
+    /** 일정 변경과 이미 저장된 매치 팀의 불일치를 알리며 매치 데이터의 복구는 수행하지 않습니다. */
+    private fun logExistingMatchTeamMismatches(
+        dtos: List<FixtureApiSportsSyncDto>,
+        fixtures: List<FixtureApiSports>,
+    ) {
+        val fixturesByApiId = fixtures.associateBy { it.apiId }
+        dtos.forEach { dto ->
+            val fixture = fixturesByApiId[dto.apiId] ?: return@forEach
+            if (fixture.preventUpdate) return@forEach
+            listOf(
+                Triple("home", fixture.homeTeam, dto.homeTeam?.apiId),
+                Triple("away", fixture.awayTeam, dto.awayTeam?.apiId),
+            ).forEach { (side, matchTeam, requestedTeamApiId) ->
+                if (matchTeam != null && matchTeam.getTeamApiId() != requestedTeamApiId) {
+                    log.error(
+                        "Schedule/match team mismatch: fixtureUid={}, fixtureApiId={}, side={}, matchTeamId={}, storedTeamApiId={}, requestedTeamApiId={}",
+                        fixture.core?.uid, fixture.apiId, side, matchTeam.id, matchTeam.getTeamApiId(), requestedTeamApiId,
+                    )
+                }
+            }
+        }
     }
 
     private fun findOrCreateProviderSeason(

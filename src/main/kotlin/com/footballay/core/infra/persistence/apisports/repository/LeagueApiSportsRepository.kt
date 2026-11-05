@@ -64,6 +64,10 @@ interface LeagueApiSportsRepository : JpaRepository<LeagueApiSports, Long> {
         LEFT JOIN FETCH s.fixtures f
         LEFT JOIN FETCH f.core
         LEFT JOIN FETCH f.venue
+        LEFT JOIN FETCH f.homeTeam homeMatchTeam
+        LEFT JOIN FETCH homeMatchTeam.teamApiSports
+        LEFT JOIN FETCH f.awayTeam awayMatchTeam
+        LEFT JOIN FETCH awayMatchTeam.teamApiSports
         WHERE l.apiId = :apiId AND s.seasonYear = :seasonYear
         """,
     )

@@ -38,8 +38,8 @@ interface FixtureApiSportsRepository : JpaRepository<FixtureApiSports, Long> {
         @Param("coreUid") coreUid: String,
     ): FixtureApiSports?
 
-    // 시즌 전환: ID 보강 조회에서도 기존 Core를 함께 로드하여 UID를 유지합니다.
-    @EntityGraph(attributePaths = ["core"])
+    /** 시즌 외부 경기의 Core UID를 유지하고, 기존 매치 팀과 일정 팀의 정합성을 확인할 데이터를 조회합니다. */
+    @EntityGraph(attributePaths = ["core", "homeTeam.teamApiSports", "awayTeam.teamApiSports"])
     fun findAllByApiIdIn(apiIds: List<Long>): List<FixtureApiSports>
 
     fun findByApiId(apiId: Long): FixtureApiSports?

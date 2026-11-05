@@ -6,8 +6,8 @@ import com.footballay.core.infra.persistence.core.repository.FixtureCoreReposito
 import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import com.footballay.core.infra.persistence.mockbackbone.repository.MockBackboneFixtureRepository
 import jakarta.persistence.EntityManager
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
@@ -15,30 +15,24 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.transaction.annotation.Transactional
 import java.nio.file.Files
-import java.nio.file.Path
 import java.time.Instant
 
 /**
  * 벤치마크 PostgreSQL에서 변경된 조회 경로가 실행한 SQL을 읽기 전용으로 수집한다.
- * 데이터셋을 다시 시드하거나 조회 구조를 변경한 뒤 재측정할 때만 Disabled를 해제한다.
+ * 데이터셋을 다시 시드하거나 조회 구조를 변경한 뒤 BENCHMARK_CAPTURE=true로 재측정한다.
  */
-@Disabled("전용 PostgreSQL과 고정 데이터셋이 필요한 수동 진단 테스트")
+@EnabledIfEnvironmentVariable(named = "BENCHMARK_CAPTURE", matches = "true")
 @SpringBootTest(
     properties = [
-        "spring.datasource.url=jdbc:postgresql://127.0.0.1:55432/footballay_benchmark",
-        "spring.datasource.driver-class-name=org.postgresql.Driver",
-        "spring.datasource.username=benchmark",
-        "spring.datasource.password=footballay_benchmark_only",
-        "spring.datasource.hikari.read-only=true",
         "spring.jpa.hibernate.ddl-auto=none",
+        "spring.flyway.enabled=false",
         "spring.jpa.show-sql=false",
-        "logging.level.org.hibernate.SQL=DEBUG",
-        "logging.level.org.hibernate.orm.jdbc.bind=TRACE",
         "footballay.test.redis.enabled=false",
+        "spring.quartz.auto-startup=false",
     ],
 )
 @ActiveProfiles("test")
-@Import(SqlCaptureTestConfiguration::class)
+@Import(RepositoryBenchmarkJdbcConfiguration::class, SqlCaptureTestConfiguration::class)
 class FixtureLeagueSeasonPostgresExplainCaptureTest {
     @Autowired private lateinit var fixtures: FixtureCoreRepository
     @Autowired private lateinit var states: FixtureMatchCollectStateRepository
@@ -50,7 +44,7 @@ class FixtureLeagueSeasonPostgresExplainCaptureTest {
     private val fixtureUid = "bench-fixture-000000000001"
     private val from = Instant.parse("2026-08-01T00:00:00Z")
     private val to = Instant.parse("2026-09-01T00:00:00Z")
-    private val output = Path.of("plan", "fixture-league-season", "postgres-explain", "captures")
+    private val output by lazy { BenchmarkCaptureOutput.directory("fixture-league-season") }
 
     @Test
     @Transactional(readOnly = true)

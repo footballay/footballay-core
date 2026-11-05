@@ -22,7 +22,7 @@ import java.time.Instant
         Index(name = "idx_mock_team_created_at", columnList = "created_at"),
     ],
 )
-class MockBackboneTeam(
+open class MockBackboneTeam(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,

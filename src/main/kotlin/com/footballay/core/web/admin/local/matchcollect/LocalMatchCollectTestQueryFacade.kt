@@ -33,7 +33,8 @@ class LocalMatchCollectTestQueryFacade(
         fixtureUid: String?,
         includeState: Boolean,
     ): LocalMatchCollectDiagnosticsQuery {
-        val fixture = fixtureUid?.let(fixtureCoreRepository::findNullableByUid)
+        val fixtureWithApiSports = fixtureUid?.let(fixtureCoreRepository::findWithApiSportsByUid)
+        val fixture = fixtureWithApiSports?.core
         val league = resolveLeague(leagueUid, fixture)
         val state = if (includeState && fixtureUid != null) stateRepository.findByFixture_Uid(fixtureUid) else null
         val recentStates =
@@ -54,7 +55,7 @@ class LocalMatchCollectTestQueryFacade(
 
         return LocalMatchCollectDiagnosticsQuery(
             league = league?.let(::toLeagueSnapshot),
-            fixture = fixture?.let(::toFixtureSnapshot),
+            fixture = fixture?.let { toFixtureSnapshot(it, fixtureWithApiSports.apiSports?.apiId) },
             state = state?.let(::toStateSnapshot),
             recentStates = recentStates.map(::toStateSnapshot),
         )
@@ -78,7 +79,7 @@ class LocalMatchCollectTestQueryFacade(
             matchCollect = league.matchCollect,
         )
 
-    private fun toFixtureSnapshot(fixture: FixtureCore): LocalMatchCollectFixtureSnapshot {
+    private fun toFixtureSnapshot(fixture: FixtureCore, apiSportsFixtureId: Long?): LocalMatchCollectFixtureSnapshot {
         val season = requireSeason(fixture)
         return LocalMatchCollectFixtureSnapshot(
             fixtureUid = fixture.uid,
@@ -88,7 +89,7 @@ class LocalMatchCollectTestQueryFacade(
             kickoff = fixture.kickoff,
             statusCode = fixture.statusCode,
             available = fixture.available,
-            apiSportsFixtureId = fixture.apiSports?.apiId,
+            apiSportsFixtureId = apiSportsFixtureId,
         )
     }
 

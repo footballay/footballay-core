@@ -179,6 +179,24 @@ class MatchJobRegistrar(
         }
     }
 
+    /** job 부재는 정상으로 처리하고, 실제 실패는 key별로 기록해 재실행할 수 있게 합니다. */
+    fun cleanupFixtureJobs(leagueUid: String, fixtureUid: String): FixtureJobCleanupResult {
+        var deleted = 0
+        val failures = mutableListOf<JobKey>()
+        MatchJobOwner.entries.forEach { owner ->
+            MatchJobPhase.entries.forEach { phase ->
+                val key = MatchJobKeyFactory.jobKey(MatchJobIdentity(owner, phase, leagueUid, fixtureUid))
+                try {
+                    if (scheduler.deleteJob(key)) deleted++
+                } catch (e: Exception) {
+                    failures += key
+                    log.error("Failed to clean fixture job - leagueUid={}, fixtureUid={}, key={}", leagueUid, fixtureUid, key, e)
+                }
+            }
+        }
+        return FixtureJobCleanupResult(deleted, failures)
+    }
+
     private fun matchesDesiredSpec(
         jobKey: JobKey,
         schedule: MatchJobSchedule,

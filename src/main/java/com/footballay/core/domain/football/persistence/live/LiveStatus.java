@@ -13,6 +13,8 @@ public class LiveStatus {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    // Deprecated된 축구 데이터 영역이므로 매핑을 유지합니다.
+    // inverse OneToOne은 존재 확인용 추가 SELECT로 N+1을 유발할 수 있습니다.
     @OneToOne(mappedBy = "liveStatus", fetch = FetchType.LAZY)
     private Fixture fixture;
     private String longStatus;

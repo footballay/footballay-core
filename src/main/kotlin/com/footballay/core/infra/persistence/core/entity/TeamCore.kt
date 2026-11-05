@@ -1,11 +1,10 @@
 package com.footballay.core.infra.persistence.core.entity
 
-import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
 import jakarta.persistence.*
 
 @Entity
 @Table(name = "team_core")
-data class TeamCore(
+open class TeamCore(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
@@ -23,8 +22,6 @@ data class TeamCore(
     var country: String? = null,
     var founded: Int? = null,
     var national: Boolean = false,
-    @OneToOne(mappedBy = "teamCore", cascade = [CascadeType.ALL], optional = true)
-    var teamApiSports: TeamApiSports? = null,
     /**
      * Provider data Sync 과정에서 자동으로 생성된 core 인 경우입니다. <br>
      * 관리자에 의해 체크가 필요한 경우를 나타냅니다. <br>
@@ -65,5 +62,5 @@ data class TeamCore(
 
     fun getLeagues(): Set<LeagueCore> = leagueTeams.mapNotNull { it.league }.toSet()
 
-    override fun toString(): String = "TeamCore(id=$id, uid=$uid, name=$name, code=$code, teamApiSportsId=${teamApiSports?.id})"
+    override fun toString(): String = "TeamCore(id=$id, uid=$uid, name=$name, code=$code)"
 }

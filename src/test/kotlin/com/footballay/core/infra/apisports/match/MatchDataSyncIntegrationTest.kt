@@ -1,8 +1,13 @@
 package com.footballay.core.infra.apisports.match
 
+import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
+import com.footballay.core.infra.persistence.core.entity.TeamCore
+import com.footballay.core.infra.persistence.apisports.repository.TeamApiSportsRepository
 import com.footballay.core.infra.dispatcher.match.MatchDataSyncDispatcher
 import com.footballay.core.infra.facade.ApiSportsBackboneSyncFacade
 import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayerStatistics
+import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
 import com.footballay.core.infra.persistence.apisports.repository.FixtureApiSportsRepository
 import com.footballay.core.logger
 import jakarta.persistence.EntityManager
@@ -48,6 +53,7 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional
 @DisplayName("Match 데이터 저장 전체 흐름 통합 테스트")
 class MatchDataSyncIntegrationTest {
+    @Autowired private lateinit var teamApiSportsRepository: TeamApiSportsRepository
     private val log = logger()
 
     @Autowired
@@ -118,10 +124,10 @@ class MatchDataSyncIntegrationTest {
         log.info("[5/5] 사전 준비 검증 완료")
         log.info("  - Fixture UID: ${verifyFixture.core?.uid}")
         log.info(
-            "  - Home Team: ${verifyFixture.core?.homeTeam?.name} (API ID: ${verifyFixture.core?.homeTeam?.teamApiSports?.apiId})",
+            "  - Home Team: ${verifyFixture.core?.homeTeam?.name} (API ID: ${providerFor(verifyFixture.core?.homeTeam)?.apiId})",
         )
         log.info(
-            "  - Away Team: ${verifyFixture.core?.awayTeam?.name} (API ID: ${verifyFixture.core?.awayTeam?.teamApiSports?.apiId})",
+            "  - Away Team: ${verifyFixture.core?.awayTeam?.name} (API ID: ${providerFor(verifyFixture.core?.awayTeam)?.apiId})",
         )
 
         log.info("========================================")
@@ -185,6 +191,13 @@ class MatchDataSyncIntegrationTest {
         val firstSyncFixture = fixtureApiSportsRepository.findByApiId(TEST_FIXTURE_API_ID)
         val firstMatchPlayerCount = firstSyncFixture?.homeTeam?.players?.size ?: 0
         val firstEventCount = firstSyncFixture?.events?.size ?: 0
+        val firstHomeStats = requireNotNull(firstSyncFixture?.homeTeam?.teamStatistics)
+        val firstAwayStats = requireNotNull(firstSyncFixture?.awayTeam?.teamStatistics)
+        val firstStatIds = listOf(firstHomeStats.id, firstAwayStats.id)
+        val originalHomeShots = firstHomeStats.totalShots
+        firstHomeStats.totalShots = -1
+        em.flush()
+        em.clear()
         log.info("첫 번째 동기화 결과: MatchPlayer = $firstMatchPlayerCount, Events = $firstEventCount")
 
         // when - 두 번째 동기화 (업데이트)
@@ -201,6 +214,10 @@ class MatchDataSyncIntegrationTest {
         // then - 데이터 일관성 유지
         assertThat(secondMatchPlayerCount).isEqualTo(firstMatchPlayerCount)
         assertThat(secondEventCount).isEqualTo(firstEventCount)
+        assertThat(listOf(secondSyncFixture?.homeTeam?.teamStatistics?.id, secondSyncFixture?.awayTeam?.teamStatistics?.id))
+            .containsExactlyElementsOf(firstStatIds)
+        assertThat(secondSyncFixture?.homeTeam?.teamStatistics?.totalShots).isEqualTo(originalHomeShots)
+        verifyTeamStats(requireNotNull(secondSyncFixture))
         log.info("=== 반복 동기화 일관성 검증 완료 ===")
     }
 
@@ -300,16 +317,17 @@ class MatchDataSyncIntegrationTest {
     private fun verifyPlayerStats(fixture: FixtureApiSports) {
         val homeTeam = fixture.homeTeam!!
         val homePlayers = homeTeam.players
+        val statsByPlayerUid = statsOfTeam(homeTeam).associateBy { it.matchPlayer!!.matchPlayerUid }
 
         // PlayerStats 존재 확인
-        val playersWithStats = homePlayers.filter { it.statistics != null }
+        val playersWithStats = homePlayers.filter { it.matchPlayerUid in statsByPlayerUid }
         assertThat(playersWithStats).isNotEmpty
         log.info("  ✓ 통계 있는 선수: ${playersWithStats.size}/${homePlayers.size}명")
 
         // 특정 선수 통계 검증 (Bruno Fernandes - 주장)
         val brunoPlayer = homePlayers.find { it.name.contains("Bruno") || it.name.contains("Fernandes") }
         if (brunoPlayer != null) {
-            val brunoStats = brunoPlayer.statistics
+            val brunoStats = statsByPlayerUid[brunoPlayer.matchPlayerUid]
             assertThat(brunoStats).isNotNull
             assertThat(brunoStats?.isCaptain).isTrue()
             assertThat(brunoStats?.minutesPlayed).isNotNull
@@ -319,17 +337,23 @@ class MatchDataSyncIntegrationTest {
         }
 
         // 골키퍼 통계 검증
-        val goalkeeperStats = playersWithStats.find { it.position == "G" }?.statistics
+        val goalkeeperStats = playersWithStats.find { it.position == "G" }?.let { statsByPlayerUid[it.matchPlayerUid] }
         if (goalkeeperStats != null) {
             log.info("  ✓ 골키퍼 통계: 세이브 ${goalkeeperStats.saves}개, 실점 ${goalkeeperStats.goalsConceded}개")
         }
 
-        // MatchPlayer ↔ PlayerStats 양방향 연관관계 검증
+        // PlayerStats owning FK 검증
         playersWithStats.forEach { player ->
-            assertThat(player.statistics?.matchPlayer).isEqualTo(player)
+            assertThat(statsByPlayerUid[player.matchPlayerUid]?.matchPlayer).isEqualTo(player)
         }
-        log.info("  ✓ MatchPlayer ↔ PlayerStats 양방향 연관관계 정상")
+        log.info("  ✓ PlayerStats → MatchPlayer 연관관계 정상")
     }
+
+    private fun statsOfTeam(team: ApiSportsMatchTeam): List<ApiSportsMatchPlayerStatistics> =
+        em.createQuery(
+            "SELECT s FROM ApiSportsMatchPlayerStatistics s WHERE s.matchPlayer.matchTeam = :team",
+            ApiSportsMatchPlayerStatistics::class.java,
+        ).setParameter("team", team).resultList
 
     private fun verifyTeamStats(fixture: FixtureApiSports) {
         val homeTeam = fixture.homeTeam!!
@@ -365,10 +389,11 @@ class MatchDataSyncIntegrationTest {
             "  ✓ Away Team XG: ${awayXgList?.first()?.expectedGoals} (elapsed: ${awayXgList?.first()?.elapsedTime}분)",
         )
 
-        // MatchTeam ↔ TeamStats 양방향 연관관계 검증
-        assertThat(homeStats?.matchTeam).isEqualTo(homeTeam)
-        assertThat(awayStats?.matchTeam).isEqualTo(awayTeam)
-        log.info("  ✓ MatchTeam ↔ TeamStats 양방향 연관관계 정상")
+        // owning 방향의 MatchTeam → TeamStats 연결 검증
+        assertThat(homeStats?.id).isNotNull
+        assertThat(awayStats?.id).isNotNull
+        assertThat(homeStats?.id).isNotEqualTo(awayStats?.id)
+        log.info("  ✓ MatchTeam → TeamStats 연관관계 정상")
     }
 
     @Test
@@ -400,11 +425,12 @@ class MatchDataSyncIntegrationTest {
         log.info("  ✓ MatchTeam ↔ MatchPlayer 양방향 연결 정상 (${homeTeam.players.size}명)")
 
         log.info("[3/4] MatchPlayer → PlayerStats 연관관계...")
-        val playersWithStats = homeTeam.players.filter { it.statistics != null }
+        val statsByPlayerUid = statsOfTeam(homeTeam).associateBy { it.matchPlayer!!.matchPlayerUid }
+        val playersWithStats = homeTeam.players.filter { it.matchPlayerUid in statsByPlayerUid }
         playersWithStats.forEach { player ->
-            assertThat(player.statistics?.matchPlayer).isEqualTo(player)
+            assertThat(statsByPlayerUid[player.matchPlayerUid]?.matchPlayer).isEqualTo(player)
         }
-        log.info("  ✓ MatchPlayer ↔ PlayerStats 양방향 연결 정상 (${playersWithStats.size}명)")
+        log.info("  ✓ PlayerStats → MatchPlayer 연결 정상 (${playersWithStats.size}명)")
 
         log.info("[4/4] MatchEvent → MatchPlayer 연관관계...")
         val eventsWithPlayer = fixture.events.filter { it.player != null }
@@ -453,4 +479,6 @@ class MatchDataSyncIntegrationTest {
         em.flush()
         em.clear()
     }
+    private fun providerFor(core: TeamCore?): TeamApiSports? =
+        core?.let { teamApiSportsRepository.findTeamApiSportsInTeamCore(listOf(it)).singleOrNull() }
 }

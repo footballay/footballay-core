@@ -6,6 +6,7 @@ import com.footballay.core.infra.match.FixtureStatusClassifier
 import com.footballay.core.infra.match.FixtureStatusGroup
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.FixtureMatchCollectState
+import com.footballay.core.infra.persistence.core.read.FixtureWithMatchCollectState
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import com.footballay.core.logger
@@ -35,7 +36,10 @@ class FixtureMatchCollectStateReconciler(
         )
     }
 
-    private fun reconcileFixture(fixture: FixtureCore): ReconcileResult {
+    private fun reconcileFixture(target: FixtureWithMatchCollectState): ReconcileResult {
+        val fixture = target.fixture
+        val state = target.state
+
         val league = fixture.leagueSeason?.league ?: run {
             log.error("FixtureCore has no league season - fixtureUid={}", fixture.uid)
             error("FixtureCore has no league season: ${fixture.uid}")
@@ -45,8 +49,8 @@ class FixtureMatchCollectStateReconciler(
         }
 
         return when (fixtureStatusClassifier.groupOf(fixture.statusCode)) {
-            FixtureStatusGroup.NOT_PLAYED -> markNotPlayed(fixture)
-            FixtureStatusGroup.PENDING -> resetTerminalToPending(fixture)
+            FixtureStatusGroup.NOT_PLAYED -> markNotPlayed(fixture, state)
+            FixtureStatusGroup.PENDING -> resetTerminalToPending(fixture, state)
             FixtureStatusGroup.LIVE,
             FixtureStatusGroup.NORMAL_FINISHED,
             FixtureStatusGroup.UNKNOWN,
@@ -54,8 +58,7 @@ class FixtureMatchCollectStateReconciler(
         }
     }
 
-    private fun markNotPlayed(fixture: FixtureCore): ReconcileResult {
-        val state = fixture.matchCollectState
+    private fun markNotPlayed(fixture: FixtureCore, state: FixtureMatchCollectState?): ReconcileResult {
         return if (state == null) {
             stateRepository.save(
                 FixtureMatchCollectState(
@@ -72,8 +75,8 @@ class FixtureMatchCollectStateReconciler(
         }
     }
 
-    private fun resetTerminalToPending(fixture: FixtureCore): ReconcileResult {
-        val state = fixture.matchCollectState ?: return skipped(fixture)
+    private fun resetTerminalToPending(fixture: FixtureCore, state: FixtureMatchCollectState?): ReconcileResult {
+        if (state == null) return skipped(fixture)
         return if (state.matchCollectStatus in RESETTABLE_TERMINAL_STATUSES) {
             state.matchCollectStatus = MatchCollectStatus.PENDING
             result(fixture = fixture, replaced = 1)

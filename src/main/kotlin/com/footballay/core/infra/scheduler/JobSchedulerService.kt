@@ -69,6 +69,9 @@ class JobSchedulerService(
 
     fun removeJob(jobKey: JobKey): Boolean = matchJobRegistrar.removeJob(jobKey)
 
+    fun cleanupFixtureJobs(leagueUid: String, fixtureUid: String) =
+        matchJobRegistrar.cleanupFixtureJobs(leagueUid, fixtureUid)
+
     fun deleteLegacyAvailableFixtureJobs(fixtureUid: String): Int =
         legacyAvailableMatchJobRegistrar.deleteLegacyAvailableFixtureJobs(fixtureUid)
 

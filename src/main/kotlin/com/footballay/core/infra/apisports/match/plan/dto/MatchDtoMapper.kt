@@ -144,11 +144,10 @@ class MatchDtoMapper {
     /**
      * ApiSportsMatchTeamStatistics 엔티티를 MatchTeamStatisticsDto로 변환
      */
-    fun toMatchTeamStatisticsDto(teamStats: ApiSportsMatchTeamStatistics): MatchTeamStatisticsDto {
-        val teamApiId =
-            teamStats.matchTeam?.getTeamApiId()
-                ?: throw IllegalArgumentException("TeamStatistics.matchTeam cannot be null")
-
+    fun toMatchTeamStatisticsDto(
+        teamStats: ApiSportsMatchTeamStatistics,
+        teamApiId: Long,
+    ): MatchTeamStatisticsDto {
         return MatchTeamStatisticsDto(
             teamApiId = teamApiId,
             // 슈팅

@@ -54,6 +54,13 @@ These rules bias toward caution over speed. For trivial tasks, use judgment.
 * If a logical change is ready, suggest a semantic commit message, but do not run `git commit` unless approved.
 * Do not weaken assertions, skip tests, or broaden matchers just to make tests pass.
 
+## Commit message conventions
+
+* Use `<type>: <short imperative summary>`. Scope is optional.
+* Use `feat` for new behavior, `fix` for incorrect behavior, `perf` for performance improvements, and `refactor` for internal restructuring without a behavior or performance goal.
+* Use `test` for test-only changes, `docs` for documentation-only changes, `build` for build or dependency changes, and `ci` for CI changes.
+* Use `chore` for maintenance that fits none of the above. When tests accompany a code change, use the code change's type.
+
 ## Architecture rules
 
 * Football entities follow the Core/Backbone split.

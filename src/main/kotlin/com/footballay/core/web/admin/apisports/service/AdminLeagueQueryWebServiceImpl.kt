@@ -1,6 +1,6 @@
 package com.footballay.core.web.admin.apisports.service
 
-import com.footballay.core.infra.persistence.core.repository.LeagueCoreRepository
+import com.footballay.core.infra.persistence.apisports.repository.LeagueApiSportsRepository
 import com.footballay.core.web.admin.apisports.dto.AvailableLeagueDto
 import com.footballay.core.web.admin.apisports.mapper.LeagueWebMapper
 import org.springframework.security.access.prepost.PreAuthorize
@@ -16,14 +16,13 @@ import org.springframework.transaction.annotation.Transactional
  */
 @Service
 class AdminLeagueQueryWebServiceImpl(
-    private val leagueCoreRepository: LeagueCoreRepository,
+    private val leagueApiSportsRepository: LeagueApiSportsRepository,
 ) : AdminLeagueQueryWebService {
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
     override fun findAvailableLeagues(): List<AvailableLeagueDto> {
-        val avaLeagues = leagueCoreRepository.findByAvailableTrue()
-        return avaLeagues.filter { it.apiSportsLeague != null }.map { lc ->
-            LeagueWebMapper.toAvailableDto(lc, lc.apiSportsLeague!!)
+        return leagueApiSportsRepository.findByAvailableCore().map { api ->
+            LeagueWebMapper.toAvailableDto(requireNotNull(api.leagueCore), api)
         }
     }
 }

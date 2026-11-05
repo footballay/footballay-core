@@ -1,8 +1,9 @@
 package com.footballay.core.web.admin.apisports.service
 
+import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
+import com.footballay.core.infra.persistence.core.entity.TeamCore
+import com.footballay.core.infra.persistence.core.read.AdminFixtureTeamsRow
 import com.footballay.core.domain.model.mapper.DomainModelMapper
-import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
-import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.repository.FixtureCoreRepository
 import com.footballay.core.infra.persistence.apisports.repository.LeagueApiSportsRepository
 import com.footballay.core.logger
@@ -94,16 +95,20 @@ class AdminFixtureQueryWebServiceImpl(
             }
         log.info("Fetched Fixtures size=${fixtures.size} for leagueUid=$leagueUid, mode=$mode, at=$targetInstant, zoneId=$zoneId")
         return fixtures
-            .map { (core, api) ->
+            .map { row ->
+                val core = row.fixture
+                val api = requireNotNull(row.backbone)
+                val home = TeamCoreAndBackbone(row.homeCore, row.homeBackbone)
+                val away = TeamCoreAndBackbone(row.awayCore, row.awayBackbone)
                 val teamHomeAndAway =
                     Pair(
-                        core.homeTeam,
-                        core.awayTeam,
+                        home.core,
+                        away.core,
                     )
                 val apiTeamHomeAndAway =
                     Pair(
-                        core.homeTeam?.teamApiSports,
-                        core.awayTeam?.teamApiSports,
+                        home.backbone,
+                        away.backbone,
                     )
                 domainModelMapper.toFixtureModel(
                     core,
@@ -130,17 +135,17 @@ class AdminFixtureQueryWebServiceImpl(
         leagueUid: String,
         at: Instant,
         zoneId: ZoneId,
-    ): List<Pair<FixtureCore, FixtureApiSports>> {
+    ): List<AdminFixtureTeamsRow> {
         val (start, end) = DateQueryResolver.resolveExactRangeAt(at, clock, zoneId)
         return fixtureCoreRepository
-            .findFixturesByLeagueUidInKickoffRange(leagueUid, start, end)
-            .mapNotNull { core ->
-                val apiSports = core.apiSports
+            .findAdminFixturesWithTeamsInRange(leagueUid, start, end)
+            .mapNotNull { row ->
+                val apiSports = row.backbone
                 if (apiSports == null) {
-                    log.warn("FixtureCore(uid=${core.uid}) has no apiSports - skipping")
+                    log.warn("FixtureCore(uid=${row.fixture.uid}) has no apiSports - skipping")
                     return@mapNotNull null
                 }
-                Pair(core, apiSports)
+                row
             }
     }
 
@@ -163,7 +168,7 @@ class AdminFixtureQueryWebServiceImpl(
         leagueUid: String,
         from: Instant,
         zoneId: ZoneId,
-    ): List<Pair<FixtureCore, FixtureApiSports>> {
+    ): List<AdminFixtureTeamsRow> {
         // 가장 가까운 kickoff 시각을 찾기
         val nearestKickoff =
             fixtureCoreRepository.findMinApiSportsBackedKickoffAfterByLeagueUid(leagueUid, from)
@@ -176,13 +181,15 @@ class AdminFixtureQueryWebServiceImpl(
 
         // 해당 날짜 범위의 모든 fixture 조회
         return fixtureCoreRepository
-            .findFixturesByLeagueUidInKickoffRange(
+            .findAdminFixturesWithTeamsInRange(
                 leagueUid = leagueUid,
                 startInclusive = dayStart,
                 endExclusive = dayEnd,
-            ).mapNotNull { core ->
-                val apiSports = core.apiSports ?: return@mapNotNull null
-                Pair(core, apiSports)
-            }
+            ).filter { it.backbone != null }
     }
+
+    private data class TeamCoreAndBackbone(
+        val core: TeamCore?,
+        val backbone: TeamApiSports?,
+    )
 }

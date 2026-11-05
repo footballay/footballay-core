@@ -54,8 +54,8 @@ class AdminMatchCollectController(
                 "Quartz job 을 등록하거나 삭제하지 않고 MatchCollectSyncExecutor 경로로 match data 저장과 FixtureMatchCollectState 갱신만 수행합니다."
 
         private const val OP_LEAGUE_STATES =
-            "특정 리그의 current season fixture MatchCollect 상태를 조회합니다. " +
-                "state row 가 아직 없는 fixture 도 league scoped 목록에는 포함될 수 있습니다. " +
+            "특정 리그에서 FixtureMatchCollectState row 가 생성된 fixture 의 MatchCollect 상태를 시즌 구분 없이 조회합니다. " +
+                "state row 가 없는 fixture 는 목록에 포함하지 않습니다. " +
                 "incompleteOnly=true 이면 운영자 확인이 필요한 상태만 조회합니다."
 
         private const val OP_GLOBAL_STATES =

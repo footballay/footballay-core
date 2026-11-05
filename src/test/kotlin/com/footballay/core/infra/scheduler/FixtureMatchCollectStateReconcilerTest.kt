@@ -58,6 +58,21 @@ class FixtureMatchCollectStateReconcilerTest {
     }
 
     @Test
+    fun repeatedReconcileDoesNotCreateDuplicateState() {
+        val fixture = saveFixture(uid = "fixture-repeat", statusCode = FixtureStatusCode.CANC)
+        em.flush()
+        em.clear()
+
+        val first = reconciler.reconcileLeague("league-fixture-repeat")
+        val second = reconciler.reconcileLeague("league-fixture-repeat")
+
+        assertThat(first.registered).isEqualTo(1)
+        assertThat(second.registered).isZero()
+        assertThat(second.skipped).isEqualTo(1)
+        assertThat(stateRepository.findAll().count { it.fixture.uid == fixture.uid }).isEqualTo(1)
+    }
+
+    @Test
     @DisplayName("MatchCollect 정책은 리그 시즌의 리그를 따른다.")
     fun `match collect reconciliation uses season league policy`() {
         val fixture = saveFixture(uid = "fixture-season-policy", statusCode = FixtureStatusCode.CANC)

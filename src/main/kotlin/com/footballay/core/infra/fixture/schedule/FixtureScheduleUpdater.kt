@@ -79,17 +79,23 @@ class FixtureScheduleUpdater(
      * 개별 리그 실패는 batch 전체를 중단하지 않고 결과 summary 에 누적합니다.
      */
     fun updateAvailableLeagues(): FixtureScheduleBatchUpdateResult {
+        val leagues = findAvailableLeagues()
+        val apiIdsByCoreId =
+            if (leagues.isEmpty()) {
+                emptyMap()
+            } else {
+                leagueApiSportsRepository.findByLeagueCoreIds(leagues.mapNotNull { it.id })
+                    .associate { requireNotNull(it.leagueCore).id to it.apiId }
+            }
         val reports =
-            findAvailableLeagues()
-                .map(::updateAvailableLeague)
+            leagues.map { updateAvailableLeague(it, apiIdsByCoreId[it.id]) }
 
         return toBatchUpdateResult(reports)
     }
 
     private fun findAvailableLeagues(): List<LeagueCore> = leagueCoreRepository.findByAvailableTrue()
 
-    private fun updateAvailableLeague(league: LeagueCore): AvailableLeagueFixtureScheduleUpdateReport {
-        val leagueApiId = league.apiSportsLeague?.apiId
+    private fun updateAvailableLeague(league: LeagueCore, leagueApiId: Long?): AvailableLeagueFixtureScheduleUpdateReport {
         if (leagueApiId == null) {
             log.warn("Skipping fixture schedule update because LeagueCore has no ApiSports league - leagueUid={}", league.uid)
             return AvailableLeagueFixtureScheduleUpdateReport.Skipped(

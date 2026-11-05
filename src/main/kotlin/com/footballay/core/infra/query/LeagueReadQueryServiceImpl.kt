@@ -6,7 +6,7 @@ import com.footballay.core.domain.facade.MockDataReadOption
 import com.footballay.core.domain.model.LeagueModel
 import com.footballay.core.domain.model.mapper.DomainModelMapper
 import com.footballay.core.infra.backbone.mock.resource.MockBackboneModelMapper
-import com.footballay.core.infra.persistence.core.repository.LeagueCoreRepository
+import com.footballay.core.infra.persistence.apisports.repository.LeagueApiSportsRepository
 import com.footballay.core.infra.persistence.mockbackbone.repository.MockBackboneLeagueRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional(readOnly = true)
 class LeagueReadQueryServiceImpl(
-    private val leagueCoreRepository: LeagueCoreRepository,
+    private val leagueApiSportsRepository: LeagueApiSportsRepository,
     private val mockBackboneLeagueRepository: MockBackboneLeagueRepository,
     private val domainModelMapper: DomainModelMapper,
     private val mockBackboneModelMapper: MockBackboneModelMapper,
@@ -22,14 +22,12 @@ class LeagueReadQueryServiceImpl(
     override fun findAvailableLeagues(option: MockDataReadOption): DomainResult<List<LeagueModel>, DomainFail> =
         try {
             val apiSportsLeagues =
-                leagueCoreRepository
-                    .findApiSportsBackedAvailableLeagues()
-                    .map { league ->
+                leagueApiSportsRepository
+                    .findByAvailableCore()
+                    .map { api ->
                         domainModelMapper.toLeagueModel(
-                            league,
-                            requireNotNull(league.apiSportsLeague) {
-                                "ApiSports-backed league query returned league without ApiSports data: ${league.uid}"
-                            },
+                            requireNotNull(api.leagueCore),
+                            api,
                         )
                     }
             val mockLeagues =

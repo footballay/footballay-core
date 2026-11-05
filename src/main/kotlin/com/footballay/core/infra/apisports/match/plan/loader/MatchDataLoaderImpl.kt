@@ -21,9 +21,12 @@ class MatchDataLoaderImpl(
         entityBundle: MatchEntityBundle,
     ) {
         log.info("starting to load match data for fixtureApiId: {}", fixtureApiId)
-        val homeTeam = entityQueryService.loadHomeTeamWithPlayersAndStats(fixtureApiId)
-        val awayTeam = entityQueryService.loadAwayTeamWithPlayersAndStats(fixtureApiId)
-        val fixtureWithEvent = entityQueryService.loadFixtureWithEvents(fixtureApiId)
+        val home = entityQueryService.loadHomeTeamWithPlayersAndStats(fixtureApiId)
+        val away = entityQueryService.loadAwayTeamWithPlayersAndStats(fixtureApiId)
+        val loadedEvents = entityQueryService.loadFixtureWithEvents(fixtureApiId)
+        val homeTeam = home?.team
+        val awayTeam = away?.team
+        val fixtureWithEvent = loadedEvents?.fixture
 
         log.info(
             "Loading match data for fixtureApiId: $fixtureApiId, homeTeam: ${homeTeam?.teamApiSports?.name}, awayTeam: ${awayTeam?.teamApiSports?.name}, events: ${fixtureWithEvent?.events?.size ?: 0}",
@@ -53,7 +56,7 @@ class MatchDataLoaderImpl(
             }
         }
 
-        // 4. 최종 Map 생성 (PlayerStats는 MatchPlayer.statistics 필드에 이미 포함됨)
+        // 4. 최종 Map 생성
         val allMatchPlayersMap = allMatchPlayers.associateBy { generateMpKey(it.id, it.name) }
 
         // 5. EntityBundle 할당
@@ -61,6 +64,7 @@ class MatchDataLoaderImpl(
         entityBundle.homeTeam = homeTeam
         entityBundle.awayTeam = awayTeam
         entityBundle.allMatchPlayers = allMatchPlayersMap
+        entityBundle.playerStatsByMatchPlayerUid = home?.playerStatsByUid.orEmpty() + away?.playerStatsByUid.orEmpty() + loadedEvents?.playerStatsByUid.orEmpty()
         entityBundle.allEvents = fixtureWithEvent?.events ?: emptyList()
         entityBundle.homeTeamStat = homeTeam?.teamStatistics
         entityBundle.awayTeamStat = awayTeam?.teamStatistics

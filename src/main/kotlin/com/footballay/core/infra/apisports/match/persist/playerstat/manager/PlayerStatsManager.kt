@@ -6,7 +6,6 @@ import com.footballay.core.infra.apisports.match.persist.playerstat.planner.Play
 import com.footballay.core.infra.apisports.match.persist.playerstat.planner.PlayerStatsChangeSet
 import com.footballay.core.infra.apisports.match.persist.playerstat.result.PlayerStatsProcessResult
 import com.footballay.core.infra.apisports.match.plan.context.MatchEntityBundle
-import com.footballay.core.infra.apisports.match.plan.context.MatchPlayerKeyGenerator
 import com.footballay.core.infra.apisports.match.plan.dto.MatchPlayerStatPlanDto
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayer
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayerStatistics
@@ -85,19 +84,10 @@ class PlayerStatsManager(
                     entityBundle.allMatchPlayers,
                 )
 
-            // 4단계: EntityBundle 업데이트 (MatchPlayer.statistics 필드에 반영)
-            savedStats.forEach { savedStat ->
-                val matchPlayer = savedStat.matchPlayer
-                if (matchPlayer != null) {
-                    val key =
-                        MatchPlayerKeyGenerator.generateMatchPlayerKey(
-                            matchPlayer.playerApiSports?.apiId,
-                            matchPlayer.name,
-                        )
-                    entityBundle.setPlayerStats(key, savedStat)
-                    log.debug("Updated EntityBundle with PlayerStats: {} ({})", matchPlayer.name, savedStat.id)
-                }
-            }
+            val deletedPlayerUids = statsChangeSet.toDelete.mapNotNull { it.matchPlayer?.matchPlayerUid }.toSet()
+            entityBundle.playerStatsByMatchPlayerUid =
+                entityBundle.playerStatsByMatchPlayerUid.filterKeys { it !in deletedPlayerUids } +
+                savedStats.mapNotNull { stats -> stats.matchPlayer?.matchPlayerUid?.let { it to stats } }.toMap()
 
             log.info("PlayerStats processing completed - Total saved: {}", savedStats.size)
             return PlayerStatsProcessResult(
@@ -113,7 +103,7 @@ class PlayerStatsManager(
         }
     }
 
-    /** 변경사항을 데이터베이스에 저장하고 MatchPlayer와 양방향 연결합니다. */
+    /** 변경사항을 데이터베이스에 저장하고 MatchPlayer를 owning FK에 연결합니다. */
     private fun persistChangesWithMatchPlayerConnection(
         statsChangeSet: PlayerStatsChangeSet,
         matchPlayers: Map<String, ApiSportsMatchPlayer>,
@@ -162,16 +152,6 @@ class PlayerStatsManager(
                 statsToCreate.size,
                 statsToRetain.size,
             )
-
-            // 5. 영속화 후 MatchPlayer와 연관관계 설정
-            savedStats.forEach { savedStat ->
-                val matchPlayer = savedStat.matchPlayer
-                if (matchPlayer != null) {
-                    // 양방향 연관관계 설정
-                    matchPlayer.statistics = savedStat
-                    log.debug("Set bidirectional relationship: {} <-> {}", matchPlayer.name, savedStat.id)
-                }
-            }
 
             allStats.addAll(savedStats)
         }

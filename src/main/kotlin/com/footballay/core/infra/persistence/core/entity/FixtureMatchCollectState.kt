@@ -22,7 +22,7 @@ import java.time.Instant
         Index(name = "idx_match_collect_status_collected", columnList = "match_collect_status,last_collected_at"),
     ],
 )
-class FixtureMatchCollectState(
+open class FixtureMatchCollectState(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,

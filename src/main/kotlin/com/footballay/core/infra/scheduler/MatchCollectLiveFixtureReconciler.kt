@@ -6,6 +6,7 @@ import com.footballay.core.infra.match.FixtureStatusClassifier
 import com.footballay.core.infra.match.FixtureStatusGroup
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.FixtureMatchCollectState
+import com.footballay.core.infra.persistence.core.read.FixtureWithMatchCollectState
 import com.footballay.core.infra.persistence.core.repository.FixtureMatchCollectStateRepository
 import com.footballay.core.infra.scheduler.matchjob.MatchJobIdentity
 import com.footballay.core.infra.scheduler.matchjob.MatchJobKeyFactory
@@ -30,13 +31,17 @@ class MatchCollectLiveFixtureReconciler(
     private val log = logger()
 
     @Transactional
-    fun reconcileFixture(fixture: FixtureCore): ReconcileResult {
+    fun reconcileFixture(fixture: FixtureCore): ReconcileResult =
+        reconcileFixture(FixtureWithMatchCollectState(fixture, stateRepository.findByFixture_Uid(fixture.uid)))
+
+    fun reconcileFixture(target: FixtureWithMatchCollectState): ReconcileResult {
+        val fixture = target.fixture
         val league = fixture.leagueSeason?.league ?: run {
             log.error("FixtureCore has no league season - fixtureUid={}", fixture.uid)
             error("FixtureCore has no league season: ${fixture.uid}")
         }
         val leagueUid = league.uid
-        val desired = desiredJobs(fixture, Instant.now(clock))
+        val desired = desiredJobs(fixture, target.state, Instant.now(clock))
         val accumulator =
             ReconcileAccumulator(
                 fixtureUid = fixture.uid,
@@ -58,6 +63,7 @@ class MatchCollectLiveFixtureReconciler(
 
     private fun desiredJobs(
         fixture: FixtureCore,
+        state: FixtureMatchCollectState?,
         now: Instant,
     ): Map<MatchJobPhase, DesiredMatchCollectJob> {
         val leagueSeason = requireNotNull(fixture.leagueSeason)
@@ -73,7 +79,7 @@ class MatchCollectLiveFixtureReconciler(
             return emptyMap()
         }
         if (statusGroup == FixtureStatusGroup.NOT_PLAYED) {
-            markNotPlayed(fixture)
+            markNotPlayed(fixture, state)
             return emptyMap()
         }
 
@@ -141,17 +147,14 @@ class MatchCollectLiveFixtureReconciler(
             compareStartAt = false,
         )
 
-    private fun markNotPlayed(fixture: FixtureCore) {
-        val state = fixture.matchCollectState
+    private fun markNotPlayed(fixture: FixtureCore, state: FixtureMatchCollectState?) {
         if (state == null) {
-            val saved =
-                stateRepository.save(
-                    FixtureMatchCollectState(
-                        fixture = fixture,
-                        matchCollectStatus = MatchCollectStatus.NOT_PLAYED,
-                    ),
-                )
-            fixture.matchCollectState = saved
+            stateRepository.save(
+                FixtureMatchCollectState(
+                    fixture = fixture,
+                    matchCollectStatus = MatchCollectStatus.NOT_PLAYED,
+                ),
+            )
         } else if (state.matchCollectStatus != MatchCollectStatus.NOT_PLAYED) {
             state.matchCollectStatus = MatchCollectStatus.NOT_PLAYED
         }

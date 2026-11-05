@@ -1,5 +1,7 @@
 package com.footballay.core.infra.facade
 
+import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
+import com.footballay.core.infra.persistence.core.entity.TeamCore
 import com.footballay.core.common.result.DomainFail
 import com.footballay.core.common.result.DomainResult
 import com.footballay.core.infra.apisports.shared.fetch.impl.ApiSportsV3MockFetcher
@@ -150,41 +152,29 @@ class ApiSportsSyncFacadeIntegrationTest {
 
         // 홈팀 검증
         assertThat(
-            firstFixture.core
-                ?.homeTeam
-                ?.teamApiSports
+            providerFor(firstFixture.core?.homeTeam)
                 ?.apiId,
         ).isEqualTo(33L)
         assertThat(
-            firstFixture.core
-                ?.homeTeam
-                ?.teamApiSports
+            providerFor(firstFixture.core?.homeTeam)
                 ?.name,
         ).isEqualTo("Manchester United")
         assertThat(
-            firstFixture.core
-                ?.homeTeam
-                ?.teamApiSports
+            providerFor(firstFixture.core?.homeTeam)
                 ?.logo,
         ).isEqualTo("https://media.api-sports.io/football/teams/33.png")
 
         // 원정팀 검증
         assertThat(
-            firstFixture.core
-                ?.awayTeam
-                ?.teamApiSports
+            providerFor(firstFixture.core?.awayTeam)
                 ?.apiId,
         ).isEqualTo(36L)
         assertThat(
-            firstFixture.core
-                ?.awayTeam
-                ?.teamApiSports
+            providerFor(firstFixture.core?.awayTeam)
                 ?.name,
         ).isEqualTo("Fulham")
         assertThat(
-            firstFixture.core
-                ?.awayTeam
-                ?.teamApiSports
+            providerFor(firstFixture.core?.awayTeam)
                 ?.logo,
         ).isEqualTo("https://media.api-sports.io/football/teams/36.png")
 
@@ -252,9 +242,7 @@ class ApiSportsSyncFacadeIntegrationTest {
         val manchesterUnited = finalTeams.find { it.apiId == 33L }
         val manchesterUnitedFixture =
             finalFixtures.find {
-                it.core
-                    ?.homeTeam
-                    ?.teamApiSports
+                providerFor(it.core?.homeTeam)
                     ?.apiId == 33L
             }
 
@@ -265,15 +253,11 @@ class ApiSportsSyncFacadeIntegrationTest {
         // fixture 상세 검증
         assertThat(manchesterUnitedFixture!!.apiId).isEqualTo(1208021L)
         assertThat(
-            manchesterUnitedFixture.core
-                ?.homeTeam
-                ?.teamApiSports
+            providerFor(manchesterUnitedFixture.core?.homeTeam)
                 ?.name,
         ).isEqualTo("Manchester United")
         assertThat(
-            manchesterUnitedFixture.core
-                ?.awayTeam
-                ?.teamApiSports
+            providerFor(manchesterUnitedFixture.core?.awayTeam)
                 ?.name,
         ).isEqualTo("Fulham")
         assertThat(manchesterUnitedFixture.season?.leagueApiSports?.apiId).isEqualTo(SUPPORTED_LEAGUE_API_ID)
@@ -321,23 +305,17 @@ class ApiSportsSyncFacadeIntegrationTest {
 
         log.info("expect core home not null : ${manUtdVsFulham?.core?.homeTeam}")
         log.info("expect core away not null : ${manUtdVsFulham?.core?.awayTeam}")
-        log.info("expect manutd : ${manUtdVsFulham?.core?.homeTeam?.teamApiSports}")
-        log.info("expect fulham : ${manUtdVsFulham?.core?.awayTeam?.teamApiSports}")
+        log.info("expect manutd : ${providerFor(manUtdVsFulham?.core?.homeTeam)}")
+        log.info("expect fulham : ${providerFor(manUtdVsFulham?.core?.awayTeam)}")
 
         // Manchester United vs Fulham 검증
         assertThat(manUtdVsFulham).isNotNull
         assertThat(
-            manUtdVsFulham
-                ?.core
-                ?.homeTeam
-                ?.teamApiSports
+            providerFor(manUtdVsFulham?.core?.homeTeam)
                 ?.name,
         ).isEqualTo("Manchester United")
         assertThat(
-            manUtdVsFulham
-                ?.core
-                ?.awayTeam
-                ?.teamApiSports
+            providerFor(manUtdVsFulham?.core?.awayTeam)
                 ?.name,
         ).isEqualTo("Fulham")
         assertThat(manUtdVsFulham?.score?.fulltimeHome).isEqualTo(1)
@@ -346,17 +324,11 @@ class ApiSportsSyncFacadeIntegrationTest {
         // Arsenal vs Wolves 검증
         assertThat(arsenalVsWolves).isNotNull
         assertThat(
-            arsenalVsWolves
-                ?.core
-                ?.homeTeam
-                ?.teamApiSports
+            providerFor(arsenalVsWolves?.core?.homeTeam)
                 ?.name,
         ).isEqualTo("Arsenal")
         assertThat(
-            arsenalVsWolves
-                ?.core
-                ?.awayTeam
-                ?.teamApiSports
+            providerFor(arsenalVsWolves?.core?.awayTeam)
                 ?.name,
         ).isEqualTo("Wolves")
         assertThat(arsenalVsWolves?.score?.fulltimeHome).isEqualTo(3)
@@ -365,21 +337,17 @@ class ApiSportsSyncFacadeIntegrationTest {
         // Manchester United vs Aston Villa 검증 (마지막 경기)
         assertThat(manUtdVsAstonVilla).isNotNull
         assertThat(
-            manUtdVsAstonVilla
-                ?.core
-                ?.homeTeam
-                ?.teamApiSports
+            providerFor(manUtdVsAstonVilla?.core?.homeTeam)
                 ?.name,
         ).isEqualTo("Manchester United")
         assertThat(
-            manUtdVsAstonVilla
-                ?.core
-                ?.awayTeam
-                ?.teamApiSports
+            providerFor(manUtdVsAstonVilla?.core?.awayTeam)
                 ?.name,
         ).isEqualTo("Aston Villa")
         assertThat(manUtdVsAstonVilla?.score?.fulltimeHome).isEqualTo(2)
         assertThat(manUtdVsAstonVilla?.score?.fulltimeAway).isEqualTo(0)
         assertThat(manUtdVsAstonVilla?.round).isEqualTo("Regular Season - 38")
     }
+    private fun providerFor(core: TeamCore?): TeamApiSports? =
+        core?.let { teamApiSportsRepository.findTeamApiSportsInTeamCore(listOf(it)).singleOrNull() }
 }

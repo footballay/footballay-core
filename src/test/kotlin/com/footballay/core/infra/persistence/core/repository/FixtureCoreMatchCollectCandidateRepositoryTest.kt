@@ -63,8 +63,9 @@ class FixtureCoreMatchCollectCandidateRepositoryTest {
             )
 
         assertThat(result.map { it.uid }).containsExactly(noState.uid, withState.fixture.uid)
-        assertThat(result.first { it.uid == noState.uid }.matchCollectState).isNull()
-        assertThat(result.first { it.uid == withState.fixture.uid }.matchCollectState?.lastCollectedAt)
+        val states = stateRepository.findAllByFixtureUids(result.map { it.uid }).associateBy { it.fixture.uid }
+        assertThat(states[noState.uid]).isNull()
+        assertThat(states[withState.fixture.uid]?.lastCollectedAt)
             .isEqualTo(withState.lastCollectedAt)
     }
 
@@ -88,9 +89,24 @@ class FixtureCoreMatchCollectCandidateRepositoryTest {
         assertThat(result.map { it.uid }).containsExactly(startBoundary.uid, beforeEndBoundary.uid)
     }
 
+    @Test
+    fun `terminal 상태는 페이지 적용 전에 제외한다`() {
+        val from = Instant.parse("2026-06-15T00:00:00Z")
+        val to = Instant.parse("2026-06-15T10:00:00Z")
+        state("terminal-first", kickoff = from.plusSeconds(1), lastCollectedAt = null, status = MatchCollectStatus.SUCCESS)
+        val candidate = saveFixture("eligible-second", kickoff = from.plusSeconds(2))
+        em.flush()
+        em.clear()
+
+        val result = findCandidates(from, to, batchSize = 1)
+
+        assertThat(result.map { it.uid }).containsExactly(candidate.uid)
+    }
+
     private fun findCandidates(
         kickoffFromInclusive: Instant,
         kickoffToExclusive: Instant,
+        batchSize: Int = 100,
     ): List<FixtureCore> =
         fixtureCoreRepository.findFinishedCollectCandidateFixtures(
             kickoffFromInclusive = kickoffFromInclusive,
@@ -103,7 +119,7 @@ class FixtureCoreMatchCollectCandidateRepositoryTest {
                     MatchCollectStatus.FAIL_END,
                 ),
             matchCollect = MatchCollect.FINISHED,
-            pageable = PageRequest.of(0, 100),
+            pageable = PageRequest.of(0, batchSize),
         )
 
     private fun state(

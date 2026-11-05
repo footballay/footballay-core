@@ -32,7 +32,7 @@ import java.time.LocalDate
         Index(name = "idx_league_season_core_league_current", columnList = "league_core_id,current"),
     ],
 )
-data class LeagueSeasonCore(
+open class LeagueSeasonCore(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,

@@ -1,8 +1,13 @@
 package com.footballay.core.infra.apisports.shared.fetch.impl
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.footballay.core.config.JacksonConfig
 import com.footballay.core.infra.apisports.shared.config.ApiSportsProperties
+import com.footballay.core.infra.apisports.shared.config.ApiSportsHeaders
 import com.footballay.core.infra.dataquality.raw.ApiSportsRawResponseCollector
 import com.footballay.core.infra.dataquality.raw.DefaultApiSportsRawResponseCollector
 import com.footballay.core.infra.dataquality.raw.RawResponseCanonicalHasher
@@ -18,6 +23,8 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.DisplayName
+import org.slf4j.LoggerFactory
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
@@ -40,6 +47,42 @@ import java.util.concurrent.RejectedExecutionException
 class ApiSportsV3FetchImplRawCollectionTest {
     private val objectMapper: ObjectMapper = JacksonConfig().objectMapper()
     private val properties = ApiSportsProperties()
+
+    @Test
+    @DisplayName("계정 상태 조회는 인증 헤더를 전송하지만 API 키를 로그에 남기지 않는다")
+    fun fetchStatusDoesNotLogApiKey() {
+        val apiKey = "test-only-api-key-never-log"
+        val properties = ApiSportsProperties(headers = ApiSportsHeaders("x-apisports-key", apiKey))
+        val fixture = testFixture(mock(), properties)
+        fixture.server.expect(requestTo("https://v3.football.api-sports.io/status"))
+            .andExpect(method(org.springframework.http.HttpMethod.GET))
+            .andExpect(header("x-apisports-key", apiKey))
+            .andRespond(withSuccess(
+                """{"get":"status","parameters":[],"errors":[],"results":1,"paging":{"current":1,"total":1},
+                    "response":{"account":{"firstname":"Test","lastname":"User","email":"test@example.com"},
+                    "subscription":{"plan":"Test","end":"2026-12-31","active":true},
+                    "requests":{"current":0,"limit_day":1000}}}""",
+                MediaType.APPLICATION_JSON,
+            ))
+        val logger = LoggerFactory.getLogger(ApiSportsV3FetchImpl::class.java) as Logger
+        val previousLevel = logger.level
+        val appender = ListAppender<ILoggingEvent>()
+        appender.start()
+        logger.addAppender(appender)
+        logger.level = Level.INFO
+        try {
+            val response = fixture.fetcher.fetchStatus()
+
+            assertThat(response.response.requests.limit_day).isEqualTo(1000)
+            val logs = appender.list.joinToString("\n") { it.formattedMessage }
+            assertThat(logs).contains("Request [status]").doesNotContain(apiKey)
+            fixture.server.verify()
+        } finally {
+            logger.level = previousLevel
+            logger.detachAppender(appender)
+            appender.stop()
+        }
+    }
 
     @Test
     fun `fixture single fetch maps raw body to DTO and sends raw body to collector before returning`() {
@@ -165,7 +208,10 @@ class ApiSportsV3FetchImplRawCollectionTest {
         }.isInstanceOf(Exception::class.java)
     }
 
-    private fun testFixture(collector: ApiSportsRawResponseCollector): TestFixture {
+    private fun testFixture(
+        collector: ApiSportsRawResponseCollector,
+        properties: ApiSportsProperties = this.properties,
+    ): TestFixture {
         val restClientBuilder =
             RestClient
                 .builder()

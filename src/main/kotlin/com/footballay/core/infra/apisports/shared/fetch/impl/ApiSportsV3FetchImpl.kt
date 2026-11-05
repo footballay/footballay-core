@@ -35,9 +35,6 @@ class ApiSportsV3FetchImpl(
     private val log = logger()
 
     override fun fetchStatus(): ApiSportsV3LiveStatusEnvelope<ApiSportsAccountStatus> {
-        log.info("ApiSports v3 fetch properties: $properties")
-        log.info("ApiSports v3 fetch properties-key: ${properties.headers.xRapidapiKeyName} , ${properties.headers.xRapidapiKeyValue}")
-
         val uri: URI =
             ApiSportsUriBuilder()
                 .path(ApiSportsPaths.status)

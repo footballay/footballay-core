@@ -3,10 +3,14 @@ package com.footballay.core.infra.persistence.core.repository
 import com.footballay.core.domain.fixture.FixtureStatusCode
 import com.footballay.core.domain.league.MatchCollect
 import com.footballay.core.domain.matchcollect.MatchCollectStatus
+import com.footballay.core.domain.matchcollect.AdminMatchCollectQueryModelMapper
 import com.footballay.core.infra.persistence.core.entity.FixtureCore
 import com.footballay.core.infra.persistence.core.entity.FixtureMatchCollectState
 import com.footballay.core.infra.persistence.core.entity.LeagueCore
 import com.footballay.core.infra.persistence.core.entity.LeagueSeasonCore
+import com.footballay.core.infra.persistence.core.entity.TeamCore
+import com.footballay.core.querycapture.SqlCaptureStatementInspector
+import com.footballay.core.querycapture.SqlCaptureTestConfiguration
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.assertj.core.api.Assertions.assertThat
@@ -15,6 +19,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.DisplayName
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.data.domain.PageRequest
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.test.context.ActiveProfiles
@@ -22,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 @SpringBootTest
+@Import(SqlCaptureTestConfiguration::class)
 @ActiveProfiles("test")
 @Transactional
 class FixtureMatchCollectStateRepositoryTest {
@@ -36,6 +42,9 @@ class FixtureMatchCollectStateRepositoryTest {
 
     @Autowired
     private lateinit var stateRepository: FixtureMatchCollectStateRepository
+
+    @Autowired
+    private lateinit var inspector: SqlCaptureStatementInspector
 
     @PersistenceContext
     private lateinit var em: EntityManager
@@ -251,6 +260,65 @@ class FixtureMatchCollectStateRepositoryTest {
 
         assertThat(result?.fixture?.uid).isEqualTo(target.uid)
         assertThat(result?.matchCollectStatus).isEqualTo(MatchCollectStatus.FAIL_END)
+    }
+
+    @Test
+    @DisplayName("상태 우선 조회는 리그 구분 없이 상태를 좁히고 동률·NULL·빈 페이지를 유지한다")
+    fun stateFirstPaginatesInStableOrder() {
+        val early = saveFixture("state-first-early", kickoff = Instant.parse("2026-06-14T09:00:00Z"))
+        val tiedFirst = saveFixture("state-first-tied-first")
+        val tiedSecond = saveFixture("state-first-tied-second")
+        val undated = saveFixture("state-first-undated", kickoff = null)
+        val fixtures = listOf(early, tiedFirst, tiedSecond, undated)
+        val statuses = listOf(MatchCollectStatus.FAIL_END, MatchCollectStatus.DATA_INCOMPLETE_NEEDS_ADMIN)
+        fixtures.forEachIndexed { index, fixture ->
+            stateRepository.save(FixtureMatchCollectState(fixture = fixture, matchCollectStatus = statuses[index % 2]))
+        }
+        saveFixture("state-first-without-state")
+        stateRepository.save(FixtureMatchCollectState(fixture = saveFixture("state-first-success"), matchCollectStatus = MatchCollectStatus.SUCCESS))
+        em.flush()
+        em.clear()
+
+        val first = stateRepository.findAdminStatesByStatusesStateFirst(statuses, 0L, 2)
+        val second = stateRepository.findAdminStatesByStatusesStateFirst(statuses, 2L, 2)
+        val empty = stateRepository.findAdminStatesByStatusesStateFirst(statuses, 4L, 2)
+        val original = stateRepository.findAdminStatesByStatuses(statuses, PageRequest.of(0, 10))
+
+        assertThat(first.map { it.fixture.uid }).containsExactly(tiedSecond.uid, tiedFirst.uid)
+        assertThat(second.map { it.fixture.uid }).containsExactly(early.uid, undated.uid)
+        assertThat(empty).isEmpty()
+        assertThat((first + second).map { it.fixture.uid }).containsExactlyElementsOf(original.content.map { it.fixture.uid })
+        assertThat(stateRepository.countByMatchCollectStatusIn(statuses)).isEqualTo(4)
+        assertThat(stateRepository.findAdminStatesByStatusesStateFirst(listOf(MatchCollectStatus.NOT_PLAYED), 0L, 2)).isEmpty()
+    }
+
+    @Test
+    @DisplayName("상태 우선 조회는 응답 맵핑에 필요한 모든 연관을 SQL 한 번으로 읽는다")
+    fun stateFirstLoadsAdminFieldsWithoutAdditionalQueries() {
+        val home = TeamCore(uid = "state-first-home", name = "Home")
+        val away = TeamCore(uid = "state-first-away", name = "Away")
+        em.persist(home)
+        em.persist(away)
+        repeat(2) { index ->
+            val fixture = saveFixture("state-first-loaded-$index")
+            fixture.homeTeam = home
+            fixture.awayTeam = away
+            stateRepository.save(FixtureMatchCollectState(fixture = fixture, matchCollectStatus = MatchCollectStatus.NOT_PLAYED))
+        }
+        em.flush()
+        em.clear()
+        inspector.clear()
+
+        val states = stateRepository.findAdminStatesByStatusesStateFirst(listOf(MatchCollectStatus.NOT_PLAYED), 0L, 50)
+        val queryStatements = inspector.captured()
+        val models = states.map(AdminMatchCollectQueryModelMapper()::toStateModel)
+
+        assertThat(models).hasSize(2)
+        assertThat(models.map { it.homeTeamName }).containsOnly("Home")
+        assertThat(models.map { it.awayTeamName }).containsOnly("Away")
+        assertThat(models.map { it.leagueUid }).doesNotContainNull()
+        assertThat(queryStatements).hasSize(1)
+        assertThat(inspector.captured()).containsExactlyElementsOf(queryStatements)
     }
 
     private fun saveFixture(

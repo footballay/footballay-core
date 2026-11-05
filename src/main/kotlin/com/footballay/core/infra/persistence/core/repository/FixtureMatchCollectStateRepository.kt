@@ -19,6 +19,7 @@ interface FixtureMatchCollectStateRepository : JpaRepository<FixtureMatchCollect
 
     fun existsByFixture_Uid(fixtureUid: String): Boolean
 
+    /** 최근 경기 중심의 진행 상태와 전체 목록은 kickoff 순서로 페이지를 탐색합니다. */
     @EntityGraph(attributePaths = ["fixture", "fixture.leagueSeason", "fixture.leagueSeason.league", "fixture.homeTeam", "fixture.awayTeam"])
     @Query(
         """
@@ -33,6 +34,44 @@ interface FixtureMatchCollectStateRepository : JpaRepository<FixtureMatchCollect
         @Param("statuses") statuses: Collection<MatchCollectStatus>,
         pageable: Pageable,
     ): Page<FixtureMatchCollectState>
+
+    /**
+     * 오래된 소수의 종료·문제 상태를 찾기 위해 전체 시간축을 탐색하지 않도록 상태 후보를 먼저 확정합니다.
+     * 후보의 경기 시간으로 페이지를 선택하고 해당 페이지의 연관 정보만 fetch하여 반복 조회를 방지합니다.
+     */
+    @Query(
+        """
+        WITH candidates AS MATERIALIZED (
+            SELECT s.fixture.id AS fixtureId
+            FROM FixtureMatchCollectState s
+            WHERE s.matchCollectStatus IN :statuses
+        ), selectedPage AS (
+            SELECT f.id AS fixtureId
+            FROM candidates c
+            JOIN FixtureCore f ON f.id = c.fixtureId
+            JOIN f.leagueSeason ls
+            JOIN ls.league l
+            ORDER BY f.kickoff DESC NULLS LAST, f.id DESC
+            OFFSET :offset ROWS FETCH FIRST :limit ROWS ONLY
+        )
+        SELECT s
+        FROM selectedPage p
+        JOIN FixtureMatchCollectState s ON s.fixture.id = p.fixtureId
+        JOIN FETCH s.fixture f
+        JOIN FETCH f.leagueSeason ls
+        JOIN FETCH ls.league l
+        LEFT JOIN FETCH f.homeTeam
+        LEFT JOIN FETCH f.awayTeam
+        ORDER BY f.kickoff DESC NULLS LAST, f.id DESC
+        """,
+    )
+    fun findAdminStatesByStatusesStateFirst(
+        @Param("statuses") statuses: Collection<MatchCollectStatus>,
+        @Param("offset") offset: Long,
+        @Param("limit") limit: Int,
+    ): List<FixtureMatchCollectState>
+
+    fun countByMatchCollectStatusIn(statuses: Collection<MatchCollectStatus>): Long
 
     @Query(
         value =

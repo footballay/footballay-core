@@ -18,6 +18,7 @@ import org.springframework.http.MediaType
 import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.bean.override.mockito.MockitoBean
+import org.springframework.test.json.JsonCompareMode
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.put
@@ -106,15 +107,21 @@ class AdminLocalizationManagementControllerTest(
 
     @WithMockUser(roles = ["ADMIN"])
     @Test
-    @DisplayName("malformed manual PUT은 AI import validation 응답으로 변환되지 않는다")
-    fun updateLocalization_keepsExistingMalformedJsonResponse() {
+    @DisplayName("malformed manual PUT은 AI import 전용 응답 대신 v1 본문 오류를 반환한다")
+    fun updateLocalization_returnsV1MalformedBodyResponse() {
         mockMvc
             .put("/api/v1/admin/localizations/leagues/{uid}/{locale}", "league-1", "ko") {
                 contentType = MediaType.APPLICATION_JSON
                 content = "{"
             }.andExpect {
                 status { isBadRequest() }
-                content { string("잘못된 요청입니다.") }
+                content {
+                    contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                    json(
+                        """{"code":"INVALID_REQUEST_BODY","message":"요청 본문 형식이 올바르지 않습니다."}""",
+                        JsonCompareMode.STRICT,
+                    )
+                }
             }
     }
 }

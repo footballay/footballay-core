@@ -152,7 +152,7 @@ object ApiSportsFixture {
         @JsonIgnoreProperties(ignoreUnknown = true)
         data class Lineup(
             val team: LineupTeam,
-            val coach: Coach,
+            val coach: Coach? = null,
             val formation: String?,
             val startXI: List<LineupPlayer>,
             val substitutes: List<LineupPlayer>,

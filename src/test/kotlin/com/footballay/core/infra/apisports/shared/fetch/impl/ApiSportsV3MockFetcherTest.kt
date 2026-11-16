@@ -306,7 +306,7 @@ class ApiSportsV3MockFetcherTest {
         val lineup = fixture.lineups.first()
         assertThat(lineup.team.name).isEqualTo("Manchester United")
         assertThat(lineup.formation).isNotNull()
-        assertThat(lineup.coach.name).isNotNull()
+        assertThat(lineup.coach?.name).isNotNull()
         assertThat(lineup.startXI).isNotEmpty()
     }
 

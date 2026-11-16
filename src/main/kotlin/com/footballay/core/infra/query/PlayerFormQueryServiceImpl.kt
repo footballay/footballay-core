@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class PlayerFormQueryServiceImpl(
     private val playerStatisticsRepository: ApiSportsMatchPlayerStatisticsRepository,
+    private val metrics: PlayerFormQueryMetrics,
 ) : PlayerFormQueryService {
     @Transactional(readOnly = true)
     override fun findRecentFinishedAppearances(
@@ -18,9 +19,11 @@ class PlayerFormQueryServiceImpl(
         perPlayerLimit: Int,
     ): Map<String, List<PlayerFormModel.Match>> {
         if (playerUids.isEmpty()) return emptyMap()
-        return playerStatisticsRepository
-            .findRecentPlayerFormAppearanceRows(playerUids, FINISHED_STATUSES, perPlayerLimit)
-            .groupBy(PlayerFormAppearanceRow::playerUid, ::toMatch)
+        val rows =
+            metrics.record(playerUids.size) {
+                playerStatisticsRepository.findRecentPlayerFormAppearanceRows(playerUids, FINISHED_STATUSES, perPlayerLimit)
+            }
+        return rows.groupBy(PlayerFormAppearanceRow::playerUid, ::toMatch)
     }
 
     private fun toMatch(row: PlayerFormAppearanceRow): PlayerFormModel.Match =

@@ -5,6 +5,7 @@ import com.footballay.core.domain.model.match.FixtureEventsModel
 import com.footballay.core.domain.model.match.FixtureInfoModel
 import com.footballay.core.domain.model.match.FixtureLineupModel
 import com.footballay.core.domain.model.match.FixtureStatisticsModel
+import com.footballay.core.domain.model.player.PlayerFormModel
 import java.time.Instant
 
 /** Localization과 응답에 필요한 비표시 값이 모두 채워진 web representation입니다. */
@@ -152,3 +153,30 @@ data class LocalizedFixturePollingModels(
     val events: LocalizedFixtureEventsModel?,
     val statistics: LocalizedFixtureStatisticsModel?,
 )
+
+data class LocalizedPlayerFormModel(
+    val player: Player,
+    val summary: PlayerFormModel.Summary,
+    val matches: List<Match>,
+) {
+    data class Player(
+        val playerUid: String,
+        val name: String,
+        val shortName: String?,
+    )
+
+    data class Match(
+        val fixtureUid: String,
+        val kickoff: Instant,
+        val home: Team?,
+        val away: Team?,
+        val playerTeamUid: String?,
+        val stats: PlayerFormModel.Stats,
+    )
+
+    data class Team(
+        val teamUid: String,
+        val name: String,
+        val shortName: String?,
+    )
+}

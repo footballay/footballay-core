@@ -3,15 +3,19 @@ package com.footballay.core.web.football.controller
 import com.footballay.core.domain.fixture.FixtureStatusCode
 import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import com.footballay.core.infra.persistence.apisports.entity.PlayerApiSports
+import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayer
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayerStatistics
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
 import com.footballay.core.infra.persistence.core.entity.*
+import com.footballay.core.localization.SupportedLocale
 import jakarta.persistence.EntityManager
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.HttpHeaders
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
@@ -29,7 +33,7 @@ class PlayerFormControllerIntegrationTest {
     @Autowired private lateinit var mvc: MockMvc
 
     private fun player(uid: String): PlayerApiSports {
-        val core = PlayerCore(uid = uid, name = uid)
+        val core = PlayerCore(uid = uid, name = "Name of $uid")
         em.persist(core)
         return PlayerApiSports(playerCore = core, apiId = uid.hashCode().toLong()).also(em::persist)
     }
@@ -42,6 +46,7 @@ class PlayerFormControllerIntegrationTest {
         rating: Double? = 7.0,
         kickoff: Instant? = Instant.parse("2026-01-01T00:00:00Z").plusSeconds(index.toLong()),
         away: Boolean = false,
+        linkPlayerTeam: Boolean = false,
     ) {
         val league = LeagueCore(uid = "league-$index", name = "League")
         em.persist(league)
@@ -62,7 +67,13 @@ class PlayerFormControllerIntegrationTest {
                 awayTeam = visitor,
             )
         em.persist(core)
-        val matchTeam = ApiSportsMatchTeam()
+        val playerTeamApi =
+            if (linkPlayerTeam) {
+                TeamApiSports(teamCore = if (away) visitor else home, apiId = 1000L + index).also(em::persist)
+            } else {
+                null
+            }
+        val matchTeam = ApiSportsMatchTeam(teamApiSports = playerTeamApi)
         em.persist(matchTeam)
         val fixture =
             FixtureApiSports(
@@ -106,12 +117,20 @@ class PlayerFormControllerIntegrationTest {
         flush()
         mvc.get("/api/v1/football/players/recent-player/form").andExpect {
             status { isOk() }
-            jsonPath("$.playerUid") { value("recent-player") }
+            jsonPath("$.player.playerUid") { value("recent-player") }
+            jsonPath("$.player.name") { value("Name of recent-player") }
             jsonPath("$.matches.length()") { value(10) }
             jsonPath("$.matches[0].fixtureUid") { value("fixture-12") }
+            jsonPath("$.matches[0].kickoff") { value("2026-01-01T00:00:12Z") }
+            jsonPath("$.matches[0].home.teamUid") { value("home-12") }
+            jsonPath("$.matches[0].away.teamUid") { value("away-12") }
+            jsonPath("$.matches[0].stats.overall.minutesPlayed") { value(90) }
+            jsonPath("$.matches[0].stats.overall.rating") { value(7.0) }
+            jsonPath("$.matches[0].stats.attacking.assists") { value(1) }
             jsonPath("$.matches[9].fixtureUid") { value("fixture-3") }
-            jsonPath("$.ratedMatches") { value(10) }
-            jsonPath("$.averageRating") { value(7.0) }
+            jsonPath("$.summary.matches") { value(10) }
+            jsonPath("$.summary.overall.ratedMatches") { value(10) }
+            jsonPath("$.summary.overall.averageRating") { value(7.0) }
         }
     }
 
@@ -131,10 +150,12 @@ class PlayerFormControllerIntegrationTest {
             status { isOk() }
             jsonPath("$.matches.length()") { value(2) }
             jsonPath("$.matches[0].fixtureUid") { value("fixture-2") }
-            jsonPath("$.matches[0].rating") { doesNotExist() }
-            jsonPath("$.matches[0].goals") { doesNotExist() }
-            jsonPath("$.ratedMatches") { value(1) }
-            jsonPath("$.averageRating") { value(7.0) }
+            jsonPath("$.matches[0].stats.overall.rating") { doesNotExist() }
+            jsonPath("$.matches[0].stats.attacking.goals") { doesNotExist() }
+            jsonPath("$.matches[1].fixtureUid") { value("fixture-1") }
+            jsonPath("$.summary.matches") { value(2) }
+            jsonPath("$.summary.overall.ratedMatches") { value(1) }
+            jsonPath("$.summary.overall.averageRating") { value(7.0) }
         }
     }
 
@@ -153,14 +174,60 @@ class PlayerFormControllerIntegrationTest {
     }
 
     @Test
+    fun resolvesPlayerTeamFromHomeAndAwaySides() {
+        val player = player("team-player")
+        appearance(player, 1, linkPlayerTeam = true)
+        appearance(player, 2, away = true, linkPlayerTeam = true)
+        appearance(player, 3)
+        flush()
+        mvc.get("/api/v1/football/players/team-player/form").andExpect {
+            status { isOk() }
+            jsonPath("$.matches[0].fixtureUid") { value("fixture-3") }
+            jsonPath("$.matches[0].playerTeamUid") { doesNotExist() }
+            jsonPath("$.matches[1].fixtureUid") { value("fixture-2") }
+            jsonPath("$.matches[1].playerTeamUid") { value("away-2") }
+            jsonPath("$.matches[2].fixtureUid") { value("fixture-1") }
+            jsonPath("$.matches[2].playerTeamUid") { value("home-1") }
+        }
+    }
+
+    @Test
+    fun localizesPlayerAndTeamNamesByAcceptLanguage() {
+        val player = player("localized-player")
+        appearance(player, 1)
+        em.persist(PlayerCoreLocalization(playerCore = player.playerCore!!, locale = SupportedLocale.KO, name = "한국어 선수", shortName = "선수"))
+        val home = em.createQuery("select t from TeamCore t where t.uid = 'home-1'", TeamCore::class.java).singleResult
+        em.persist(TeamCoreLocalization(teamCore = home, locale = SupportedLocale.KO, name = "홈팀", shortName = "홈"))
+        flush()
+
+        mvc.get("/api/v1/football/players/localized-player/form") { header(HttpHeaders.ACCEPT_LANGUAGE, "ko") }.andExpect {
+            status { isOk() }
+            header { string(HttpHeaders.CONTENT_LANGUAGE, "ko") }
+            match { result -> assertThat(result.response.getHeaders(HttpHeaders.VARY)).contains(HttpHeaders.ACCEPT_LANGUAGE) }
+            jsonPath("$.player.name") { value("한국어 선수") }
+            jsonPath("$.player.shortName") { value("선수") }
+            jsonPath("$.matches[0].home.name") { value("홈팀") }
+            jsonPath("$.matches[0].home.shortName") { value("홈") }
+            jsonPath("$.matches[0].away.name") { value("Away") }
+        }
+        mvc.get("/api/v1/football/players/localized-player/form").andExpect {
+            status { isOk() }
+            header { string(HttpHeaders.CONTENT_LANGUAGE, "en") }
+            jsonPath("$.player.name") { value("Name of localized-player") }
+            jsonPath("$.matches[0].home.name") { value("Home") }
+        }
+    }
+
+    @Test
     fun distinguishesNoHistoryFromUnknownPlayer() {
         player("empty-player")
         flush()
         mvc.get("/api/v1/football/players/empty-player/form").andExpect {
             status { isOk() }
             jsonPath("$.matches.length()") { value(0) }
-            jsonPath("$.ratedMatches") { value(0) }
-            jsonPath("$.averageRating") { doesNotExist() }
+            jsonPath("$.summary.matches") { value(0) }
+            jsonPath("$.summary.overall.ratedMatches") { value(0) }
+            jsonPath("$.summary.overall.averageRating") { doesNotExist() }
         }
         mvc.get("/api/v1/football/players/unknown-player/form").andExpect { status { isNotFound() } }
     }
@@ -173,8 +240,8 @@ class PlayerFormControllerIntegrationTest {
         mvc.get("/api/v1/football/players/unrated-player/form").andExpect {
             status { isOk() }
             jsonPath("$.matches.length()") { value(1) }
-            jsonPath("$.ratedMatches") { value(0) }
-            jsonPath("$.averageRating") { doesNotExist() }
+            jsonPath("$.summary.overall.ratedMatches") { value(0) }
+            jsonPath("$.summary.overall.averageRating") { doesNotExist() }
         }
     }
 

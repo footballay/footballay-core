@@ -3,6 +3,7 @@ package com.footballay.core.web.football.localization
 import com.footballay.core.domain.model.FixtureModel
 import com.footballay.core.domain.model.LeagueModel
 import com.footballay.core.domain.model.match.*
+import com.footballay.core.domain.model.player.PlayerFormModel
 import com.footballay.core.infra.persistence.core.repository.LeagueCoreLocalizationRepository
 import com.footballay.core.infra.persistence.core.repository.PlayerCoreLocalizationRepository
 import com.footballay.core.infra.persistence.core.repository.TeamCoreLocalizationRepository
@@ -127,6 +128,38 @@ class FootballResponseLocalizationService(
         return localizeStatistics(model, teamNames, playerNames)
     }
 
+    fun localizePlayerForm(
+        model: PlayerFormModel,
+        locale: SupportedLocale,
+    ): LocalizedPlayerFormModel {
+        val locales = requestLocales(locale)
+        val teamDefaults = namesByUid(model.matches.flatMap { match -> listOfNotNull(match.home, match.away).map { it.teamUid to it.name } })
+        val teamNames = resolveTeamNames(teamDefaults, locales).getValue(locale)
+        val playerNames = resolvePlayerNames(mapOf(model.player.playerUid to model.player.name), locales).getValue(locale)
+        val playerName = playerNames.nameFor(model.player.playerUid, model.player.name)
+
+        return LocalizedPlayerFormModel(
+            player =
+                LocalizedPlayerFormModel.Player(
+                    playerUid = model.player.playerUid,
+                    name = playerName.name,
+                    shortName = playerName.shortName,
+                ),
+            summary = model.summary,
+            matches =
+                model.matches.map { match ->
+                    LocalizedPlayerFormModel.Match(
+                        fixtureUid = match.fixtureUid,
+                        kickoff = match.kickoff,
+                        home = match.home?.let { localizePlayerFormTeam(it, teamNames) },
+                        away = match.away?.let { localizePlayerFormTeam(it, teamNames) },
+                        playerTeamUid = match.playerTeamUid,
+                        stats = match.stats,
+                    )
+                },
+        )
+    }
+
     fun preparePollingModels(
         lineup: FixtureLineupModel?,
         events: FixtureEventsModel?,
@@ -175,6 +208,19 @@ class FootballResponseLocalizationService(
             shortName = localizedName.shortName,
             logo = team.logo,
             playerColor = team.playerColor,
+        )
+    }
+
+    private fun localizePlayerFormTeam(
+        team: PlayerFormModel.Team,
+        names: Map<String, LocalizedName>,
+    ): LocalizedPlayerFormModel.Team {
+        val localizedName = names.nameFor(team.teamUid, team.name)
+
+        return LocalizedPlayerFormModel.Team(
+            teamUid = team.teamUid,
+            name = localizedName.name,
+            shortName = localizedName.shortName,
         )
     }
 

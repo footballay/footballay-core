@@ -1,24 +1,18 @@
-package com.footballay.core.domain.playerform
+package com.footballay.core.infra.persistence.apisports.read
 
 import java.time.Instant
 
-data class PlayerFormMatch(
+/** 선수 폼 응답에 쓰는 출전 1건을 스칼라 값으로만 가져와 경기·팀·통계 엔티티 로딩을 방지합니다. */
+data class PlayerFormAppearanceRow(
     val fixtureUid: String,
     val kickoff: Instant,
     val homeTeamUid: String?,
     val homeTeamName: String?,
     val awayTeamUid: String?,
     val awayTeamName: String?,
-    val teamUid: String?,
+    val playerTeamUid: String?,
     val minutesPlayed: Int,
     val rating: Double?,
     val goals: Int?,
     val assists: Int?,
-)
-
-data class PlayerForm(
-    val playerUid: String,
-    val matches: List<PlayerFormMatch>,
-    val ratedMatches: Int,
-    val averageRating: Double?,
 )

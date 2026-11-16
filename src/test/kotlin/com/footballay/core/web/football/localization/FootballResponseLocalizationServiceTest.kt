@@ -14,11 +14,16 @@ import com.footballay.core.infra.persistence.core.repository.LeagueCoreLocalizat
 import com.footballay.core.infra.persistence.core.repository.PlayerCoreLocalizationRepository
 import com.footballay.core.infra.persistence.core.repository.TeamCoreLocalizationRepository
 import com.footballay.core.localization.SupportedLocale
+import com.footballay.core.config.JacksonConfig
+import com.footballay.core.web.football.mapper.MatchDataMapper
 import io.mockk.every
 import io.mockk.mockk
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 
 class FootballResponseLocalizationServiceTest {
     private lateinit var leagueLocalizationRepository: LeagueCoreLocalizationRepository
@@ -90,6 +95,80 @@ class FootballResponseLocalizationServiceTest {
         assertThat(home?.players?.single()?.shortName).isEqualTo("선")
         assertThat(responses[SupportedLocale.KO]?.events?.events?.single()?.player?.shortName).isEqualTo("선")
         assertThat(responses[SupportedLocale.KO]?.statistics?.home?.playerStatistics?.single()?.player?.name).isEqualTo("선수")
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [true, false])
+    @DisplayName("Core 연결 유무와 관계없이 지역화·응답 변환·JSON 직렬화까지 경기 선수 UID를 보존한다")
+    fun responseJsonPreservesDistinctMatchPlayerUids(linked: Boolean) {
+        fun coreUid(uid: String): String? = if (linked) "core-$uid" else null
+        val lineupUid = "mp-lineup"
+        val playerUid = "mp-event"
+        val assistUid = "mp-assist"
+        val statisticsUid = "mp-statistics"
+        val lineupBase = lineupWithOnePlayer()
+        val home = lineupBase.lineup.home!!
+        val lineup = lineupBase.copy(lineup = lineupBase.lineup.copy(home = home.copy(players = listOf(
+            home.players.single().copy(matchPlayerUid = lineupUid, playerUid = coreUid(lineupUid)),
+        ))))
+        val eventBase = eventsWithOnePlayer().events.single()
+        val player = eventBase.player!!.copy(matchPlayerUid = playerUid, playerUid = coreUid(playerUid))
+        val assist = player.copy(matchPlayerUid = assistUid, playerUid = coreUid(assistUid), name = "Assist")
+        val events = eventsWithOnePlayer().copy(events = listOf(
+            eventBase.copy(player = player, assist = assist),
+            eventBase.copy(sequence = 2, player = null, assist = null),
+            eventBase.copy(sequence = 3, player = null, assist = assist),
+            eventBase.copy(sequence = 4, player = player, assist = null),
+        ))
+        val statisticsBase = statisticsWithOnePlayer()
+        val homeStatistics = statisticsBase.home!!
+        val statistics = statisticsBase.copy(home = homeStatistics.copy(
+            teamStatistics = mockk(relaxed = true),
+            playerStatistics = listOf(homeStatistics.playerStatistics.single().copy(
+                player = homeStatistics.playerStatistics.single().player.copy(
+                    matchPlayerUid = statisticsUid, playerUid = coreUid(statisticsUid),
+                ),
+                statistics = mockk(relaxed = true),
+            )),
+        ))
+        every { teamLocalizationRepository.findAllByCoreUidInAndLocaleIn(any(), any()) } returns emptyList()
+        every { playerLocalizationRepository.findAllByCoreUidInAndLocaleIn(any(), any()) } returns
+            if (linked) listOf(lineupUid, playerUid, assistUid, statisticsUid).map {
+                PlayerCoreLocalization(
+                    playerCore = PlayerCore(uid = coreUid(it)!!, name = "Original $it"),
+                    locale = SupportedLocale.KO, name = "선수 $it", shortName = "약칭 $it",
+                )
+            } else emptyList()
+
+        val models = service.preparePollingModels(lineup, events, statistics, SupportedLocale.entries)
+        val mapper = MatchDataMapper()
+        val json = JacksonConfig().objectMapper()
+        for (locale in SupportedLocale.entries) {
+            val localized = models.getValue(locale)
+            val eventsJson = json.readTree(json.writeValueAsString(mapper.toFixtureEventsResponse(requireNotNull(localized.events))))
+            val lineupJson = json.readTree(json.writeValueAsString(mapper.toFixtureLineupResponse(requireNotNull(localized.lineup))))
+            val statisticsJson = json.readTree(json.writeValueAsString(mapper.toFixtureStatisticsResponse(requireNotNull(localized.statistics))))
+            val players = listOf(
+                eventsJson.at("/events/0/player") to playerUid,
+                eventsJson.at("/events/0/assist") to assistUid,
+                lineupJson.at("/lineup/home/players/0") to lineupUid,
+                statisticsJson.at("/home/playerStatistics/0/player") to statisticsUid,
+                eventsJson.at("/events/2/assist") to assistUid,
+                eventsJson.at("/events/3/player") to playerUid,
+            )
+            for ((node, expectedUid) in players) {
+                assertThat(node.path("matchPlayerUid").textValue()).isEqualTo(expectedUid)
+                assertThat(node.has("playerUid")).isTrue()
+                assertThat(node.path("playerUid").textValue()).isEqualTo(coreUid(expectedUid))
+                if (!linked) assertThat(node.path("playerUid").isNull).isTrue()
+                if (linked && locale == SupportedLocale.KO) {
+                    assertThat(node.path("name").textValue()).isEqualTo("선수 $expectedUid")
+                }
+            }
+            for (path in listOf("/events/1/player", "/events/1/assist", "/events/2/player", "/events/3/assist")) {
+                assertThat(eventsJson.at(path).isNull).describedAs("%s %s", locale, path).isTrue()
+            }
+        }
     }
 
     private fun lineupWithOnePlayer(): FixtureLineupModel =

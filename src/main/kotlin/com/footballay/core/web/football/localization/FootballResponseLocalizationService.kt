@@ -236,7 +236,7 @@ class FootballResponseLocalizationService(
         val localizedName = names.nameFor(player.playerUid, player.name.orEmpty())
 
         return LocalizedFixtureEventsModel.Player(
-            matchPlayerUid = player.matchPlayerUid.orEmpty(),
+            matchPlayerUid = player.matchPlayerUid,
             playerUid = player.playerUid,
             name = localizedName.name,
             shortName = localizedName.shortName,
@@ -338,7 +338,7 @@ class FootballResponseLocalizationService(
         val localizedName = names.nameFor(player.player.playerUid, player.player.name.orEmpty())
         val localizedPlayer =
             LocalizedFixtureStatisticsModel.Player(
-                matchPlayerUid = player.player.matchPlayerUid.orEmpty(),
+                matchPlayerUid = player.player.matchPlayerUid,
                 playerUid = player.player.playerUid,
                 name = localizedName.name,
                 shortName = localizedName.shortName,

@@ -258,6 +258,29 @@ class MatchDataQueryServiceImplTest {
     }
 
     @Test
+    @DisplayName("Core 선수 연결이 없어도 이벤트·라인업·통계에서 같은 경기 선수 UID를 유지한다")
+    fun unlinkedMatchPlayerKeepsUidAcrossReadModels() {
+        val entities = entityGenerator.createCompleteMatchEntities()
+        val player = entities.matchPlayers.first()
+        val expectedUid = player.matchPlayerUid
+        player.playerApiSports = null
+        entityManager.flush()
+        entityManager.clear()
+
+        val events = (queryService.getFixtureEvents(entities.fixtureCore.uid) as DomainResult.Success).value
+        val lineup = (queryService.getFixtureLineup(entities.fixtureCore.uid) as DomainResult.Success).value
+        val statistics = (queryService.getFixtureStatistics(entities.fixtureCore.uid) as DomainResult.Success).value
+
+        assertThat(expectedUid).isNotBlank()
+        assertThat(events.events.first().player?.matchPlayerUid).isEqualTo(expectedUid)
+        assertThat(lineup.lineup.home?.players?.first()?.matchPlayerUid).isEqualTo(expectedUid)
+        assertThat(statistics.home?.playerStatistics?.first()?.player?.matchPlayerUid).isEqualTo(expectedUid)
+        assertThat(events.events.first().player?.playerUid).isNull()
+        assertThat(lineup.lineup.home?.players?.first()?.playerUid).isNull()
+        assertThat(statistics.home?.playerStatistics?.first()?.player?.playerUid).isNull()
+    }
+
+    @Test
     fun `getFixtureLiveStatus - UID로 라이브 상태 조회 성공`() {
         // Given
         val entities = entityGenerator.createCompleteMatchEntities()

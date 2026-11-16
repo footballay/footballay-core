@@ -7,12 +7,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
-import org.springframework.data.domain.PageRequest
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.transaction.annotation.Transactional
 
 /**
- * 선수 폼 조회 SQL 이 선수 쪽에서 출발해 인덱스로 올라갈 수 있는 모양인지 검사한다.
+ * 선수 폼 묶음 조회 SQL 이 선수 쪽에서 출발해 인덱스로 올라갈 수 있는 모양이고, 한 번의 쿼리로 선수별 상위 N건을 자르는지 검사한다.
  *
  * 경기 팀 → 경기 조인을 `home_team_id = ? OR away_team_id = ?` 로 쓰면 PostgreSQL 이 선수 인덱스 경로를 버리고
  * 출전·통계 테이블 전체를 해시 조인한다 (실측: 출전 152만 행에서 요청당 약 1.1초, OR 제거 시 약 6ms).
@@ -37,7 +36,7 @@ class PlayerFormQuerySqlCaptureTest {
     @Transactional(readOnly = true)
     fun playerFormQueryStartsFromPlayerAndAvoidsOrJoin() {
         inspector.clear()
-        repository.findPlayerFormAppearanceRows("any-player", setOf(FixtureStatusCode.FT), PageRequest.of(0, 10))
+        repository.findRecentPlayerFormAppearanceRows(listOf("player-a", "player-b"), setOf(FixtureStatusCode.FT), 10)
 
         val statements = inspector.captured()
         assertThat(statements).hasSize(1)
@@ -45,6 +44,7 @@ class PlayerFormQuerySqlCaptureTest {
 
         assertThat(sql).startsWith("select")
         assertThat(sql).contains(" from player_core ")
+        assertThat(sql).contains("row_number() over(partition by")
         assertThat(sql).contains("coalesce(")
         assertThat(sql).doesNotContain(" or ")
     }

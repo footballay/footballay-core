@@ -7,4 +7,6 @@ import org.springframework.stereotype.Repository
 @Repository
 interface PlayerCoreRepository : JpaRepository<PlayerCore, Long> {
     fun findByUid(uid: String): PlayerCore?
+
+    fun findAllByUidIn(uids: Collection<String>): List<PlayerCore>
 }

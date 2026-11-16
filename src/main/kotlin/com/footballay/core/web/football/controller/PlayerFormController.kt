@@ -5,6 +5,7 @@ import com.footballay.core.common.result.DomainResult
 import com.footballay.core.common.result.toHttpStatus
 import com.footballay.core.localization.SupportedLocale
 import com.footballay.core.web.football.dto.PlayerFormResponse
+import com.footballay.core.web.football.dto.PlayerFormsResponse
 import com.footballay.core.web.football.service.PlayerFormWebService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -60,13 +61,43 @@ class PlayerFormController(
         acceptLanguage: String?,
     ): ResponseEntity<PlayerFormResponse> {
         val locale = localeResolver.resolve(acceptLanguage)
-        return toLocalizedResponse(playerFormWebService.getForm(playerUid.trim(), limit, locale), locale)
+        return toLocalizedResponse(playerFormWebService.getForm(playerUid, limit, locale), locale)
     }
 
-    private fun toLocalizedResponse(
-        result: DomainResult<PlayerFormResponse, DomainFail>,
+    @Operation(
+        summary = "여러 선수의 최근 경기 폼 조회",
+        description =
+            "선수 Core UID 목록으로 각 선수의 최근 폼을 한 번에 조회합니다. 각 항목은 단건 조회 응답과 같은 형태입니다. " +
+                "playerUids 는 쉼표로 구분하거나 파라미터를 반복해 전달합니다. 중복은 처음 나온 것만 남기며 최대 100명입니다. " +
+                "결과는 요청 순서를 따르고, 존재하지 않는 선수 UID 는 목록에서 빠집니다.",
+    )
+    @ApiResponses(
+        ApiResponse(
+            responseCode = "200",
+            description = "정상 조회. 존재하는 선수가 없으면 빈 forms",
+            content = [Content(schema = Schema(implementation = PlayerFormsResponse::class))],
+        ),
+        ApiResponse(responseCode = "400", description = "playerUids 누락·100명 초과 또는 limit 범위 오류"),
+    )
+    @GetMapping("/forms")
+    fun getForms(
+        @Parameter(description = "선수 Core UID 목록 (쉼표 구분, 최대 100명)", example = "yp4nn06fntg591kk,a1b2c3d4e5f6g7h8")
+        @RequestParam
+        playerUids: List<String>,
+        @Parameter(description = "선수별로 조회할 최근 경기 수 (1~10)", example = "5")
+        @RequestParam(defaultValue = DEFAULT_LIMIT)
+        limit: Int,
+        @RequestHeader(name = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+        acceptLanguage: String?,
+    ): ResponseEntity<PlayerFormsResponse> {
+        val locale = localeResolver.resolve(acceptLanguage)
+        return toLocalizedResponse(playerFormWebService.getForms(playerUids, limit, locale), locale)
+    }
+
+    private fun <T : Any> toLocalizedResponse(
+        result: DomainResult<T, DomainFail>,
         locale: SupportedLocale,
-    ): ResponseEntity<PlayerFormResponse> =
+    ): ResponseEntity<T> =
         when (result) {
             is DomainResult.Success ->
                 ResponseEntity

@@ -4,7 +4,6 @@ import com.footballay.core.domain.fixture.FixtureStatusCode
 import com.footballay.core.domain.model.player.PlayerFormModel
 import com.footballay.core.infra.persistence.apisports.read.PlayerFormAppearanceRow
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchPlayerStatisticsRepository
-import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -15,12 +14,14 @@ class PlayerFormQueryServiceImpl(
 ) : PlayerFormQueryService {
     @Transactional(readOnly = true)
     override fun findRecentFinishedAppearances(
-        playerUid: String,
-        limit: Int,
-    ): List<PlayerFormModel.Match> =
-        playerStatisticsRepository
-            .findPlayerFormAppearanceRows(playerUid, FINISHED_STATUSES, PageRequest.of(0, limit))
-            .map(::toMatch)
+        playerUids: Collection<String>,
+        perPlayerLimit: Int,
+    ): Map<String, List<PlayerFormModel.Match>> {
+        if (playerUids.isEmpty()) return emptyMap()
+        return playerStatisticsRepository
+            .findRecentPlayerFormAppearanceRows(playerUids, FINISHED_STATUSES, perPlayerLimit)
+            .groupBy(PlayerFormAppearanceRow::playerUid, ::toMatch)
+    }
 
     private fun toMatch(row: PlayerFormAppearanceRow): PlayerFormModel.Match =
         PlayerFormModel.Match(

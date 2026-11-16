@@ -251,4 +251,67 @@ class PlayerFormControllerIntegrationTest {
             mvc.get("/api/v1/football/players/any-player/form?limit=$limit").andExpect { status { isBadRequest() } }
         }
     }
+
+    @Test
+    fun returnsBatchFormsInRequestOrderAndSkipsUnknownPlayers() {
+        val first = player("batch-first")
+        val second = player("batch-second")
+        player("batch-no-history")
+        appearance(first, 101)
+        appearance(second, 102)
+        flush()
+        mvc.get("/api/v1/football/players/forms?playerUids=batch-second, unknown-player,batch-first,batch-no-history,batch-second").andExpect {
+            status { isOk() }
+            jsonPath("$.forms.length()") { value(3) }
+            jsonPath("$.forms[0].player.playerUid") { value("batch-second") }
+            jsonPath("$.forms[0].matches[0].fixtureUid") { value("fixture-102") }
+            jsonPath("$.forms[1].player.playerUid") { value("batch-first") }
+            jsonPath("$.forms[1].matches[0].fixtureUid") { value("fixture-101") }
+            jsonPath("$.forms[2].player.playerUid") { value("batch-no-history") }
+            jsonPath("$.forms[2].matches.length()") { value(0) }
+            jsonPath("$.forms[2].summary.overall.averageRating") { doesNotExist() }
+        }
+    }
+
+    @Test
+    fun appliesLimitPerPlayerInBatch() {
+        val busy = player("batch-busy")
+        val quiet = player("batch-quiet")
+        (1..12).forEach { appearance(busy, 200 + it) }
+        (1..3).forEach { appearance(quiet, 300 + it, rating = 6.0 + it) }
+        flush()
+        mvc.get("/api/v1/football/players/forms") {
+            param("playerUids", "batch-busy")
+            param("playerUids", "batch-quiet")
+            param("limit", "5")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.forms[0].matches.length()") { value(5) }
+            jsonPath("$.forms[0].matches[0].fixtureUid") { value("fixture-212") }
+            jsonPath("$.forms[0].matches[4].fixtureUid") { value("fixture-208") }
+            jsonPath("$.forms[0].summary.matches") { value(5) }
+            jsonPath("$.forms[1].matches.length()") { value(3) }
+            jsonPath("$.forms[1].matches[0].fixtureUid") { value("fixture-303") }
+            jsonPath("$.forms[1].summary.overall.averageRating") { value(8.0) }
+        }
+    }
+
+    @Test
+    fun returnsEmptyBatchWhenNoRequestedPlayerExists() {
+        mvc.get("/api/v1/football/players/forms?playerUids=unknown-a,unknown-b").andExpect {
+            status { isOk() }
+            jsonPath("$.forms.length()") { value(0) }
+        }
+    }
+
+    @Test
+    fun rejectsInvalidBatchRequests() {
+        val tooMany = (1..101).joinToString(",") { "uid-$it" }
+        val exactlyMax = (1..100).joinToString(",") { "uid-$it" }
+        mvc.get("/api/v1/football/players/forms?playerUids=$tooMany").andExpect { status { isBadRequest() } }
+        mvc.get("/api/v1/football/players/forms?playerUids=$exactlyMax").andExpect { status { isOk() } }
+        mvc.get("/api/v1/football/players/forms?playerUids= , ").andExpect { status { isBadRequest() } }
+        mvc.get("/api/v1/football/players/forms").andExpect { status { isBadRequest() } }
+        mvc.get("/api/v1/football/players/forms?playerUids=a&limit=11").andExpect { status { isBadRequest() } }
+    }
 }

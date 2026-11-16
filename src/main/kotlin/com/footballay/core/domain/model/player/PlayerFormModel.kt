@@ -14,6 +14,9 @@ data class PlayerFormModel(
 ) {
     val summary: Summary = Summary.of(matches)
 
+    /** 최근 [limit] 경기만 남긴 모델. summary 도 남긴 경기 기준으로 다시 계산됩니다. */
+    fun limitedTo(limit: Int): PlayerFormModel = if (matches.size <= limit) this else copy(matches = matches.take(limit))
+
     data class Player(
         val playerUid: String,
         val name: String,

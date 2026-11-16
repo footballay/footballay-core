@@ -1,5 +1,6 @@
 package com.footballay.core.infra.query
 
+import com.footballay.core.logger
 import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
@@ -18,11 +19,16 @@ import java.time.Duration
  *
  * 태그 값은 고정된 몇 개뿐이라 시계열 수가 늘어나지 않습니다.
  * players: 1 | 2-20 | 21-100, outcome: success | error
+ *
+ * [SLOW_QUERY_THRESHOLD] 를 넘은 쿼리는 WARN 로그로도 남깁니다. 지표는 "느려졌다"는 사실만 보여주므로,
+ * 어떤 요청이 느렸는지는 로그(Loki)에서 확인합니다.
  */
 @Component
 class PlayerFormQueryMetrics(
     private val meterRegistry: MeterRegistry,
 ) {
+    private val log = logger()
+
     private val requestedPlayers: DistributionSummary =
         DistributionSummary
             .builder(PLAYERS_METRIC)
@@ -38,12 +44,28 @@ class PlayerFormQueryMetrics(
         val sample = Timer.start(meterRegistry)
         try {
             val result = query()
-            sample.stop(timer(playerCount, OUTCOME_SUCCESS))
+            warnIfSlow(sample.stop(timer(playerCount, OUTCOME_SUCCESS)), playerCount, OUTCOME_SUCCESS)
             return result
         } catch (e: Exception) {
-            sample.stop(timer(playerCount, OUTCOME_ERROR))
+            warnIfSlow(sample.stop(timer(playerCount, OUTCOME_ERROR)), playerCount, OUTCOME_ERROR)
             throw e
         }
+    }
+
+    private fun warnIfSlow(
+        elapsedNanos: Long,
+        playerCount: Int,
+        outcome: String,
+    ) {
+        if (elapsedNanos < SLOW_QUERY_THRESHOLD.toNanos()) return
+        log.warn(
+            "Slow player form query - elapsedMs={}, players={}, playersBucket={}, outcome={}, thresholdMs={}",
+            Duration.ofNanos(elapsedNanos).toMillis(),
+            playerCount,
+            playersBucket(playerCount),
+            outcome,
+            SLOW_QUERY_THRESHOLD.toMillis(),
+        )
     }
 
     private fun timer(
@@ -65,6 +87,9 @@ class PlayerFormQueryMetrics(
         const val TAG_OUTCOME = "outcome"
         const val OUTCOME_SUCCESS = "success"
         const val OUTCOME_ERROR = "error"
+
+        /** 이 시간 이상 걸린 쿼리를 WARN 로그로 남깁니다. 대시보드의 "100ms 초과 비율" 기준과 같습니다. */
+        val SLOW_QUERY_THRESHOLD: Duration = Duration.ofMillis(100)
 
         /** p95 와 "100ms 초과 비율" 계산용 고정 구간. 구간 수를 작게 유지해 시계열 수를 제한합니다. */
         private val SLO_BUCKETS =

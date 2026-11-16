@@ -1,15 +1,48 @@
 package com.footballay.core.infra.query
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import io.micrometer.prometheusmetrics.PrometheusConfig
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 
 /** Grafana 대시보드 쿼리가 의존하는 Prometheus 지표 이름과 태그를 고정한다. */
 class PlayerFormQueryMetricsTest {
     private val registry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
     private val metrics = PlayerFormQueryMetrics(registry)
+    private val metricsLogger = LoggerFactory.getLogger(PlayerFormQueryMetrics::class.java) as Logger
+    private val appender = ListAppender<ILoggingEvent>()
+
+    @BeforeEach
+    fun attachAppender() {
+        appender.start()
+        metricsLogger.addAppender(appender)
+    }
+
+    @AfterEach
+    fun detachAppender() {
+        metricsLogger.detachAppender(appender)
+    }
+
+    @Test
+    fun warnsOnlyWhenQueryIsSlowerThanThreshold() {
+        metrics.record(1) { "fast" }
+        assertThat(appender.list).isEmpty()
+
+        metrics.record(40) { Thread.sleep(PlayerFormQueryMetrics.SLOW_QUERY_THRESHOLD.toMillis() + 20) }
+
+        assertThat(appender.list).hasSize(1)
+        val event = appender.list.single()
+        assertThat(event.level).isEqualTo(Level.WARN)
+        assertThat(event.formattedMessage).contains("Slow player form query", "players=40", "playersBucket=21-100", "outcome=success")
+    }
 
     @Test
     fun recordsQueryTimeByPlayerBucketAndOutcome() {

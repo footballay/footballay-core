@@ -20,7 +20,7 @@ class PlayerFormQueryServiceImpl(
     ): Map<String, List<PlayerFormModel.Match>> {
         if (playerUids.isEmpty()) return emptyMap()
         val rows =
-            metrics.record(playerUids.size) {
+            metrics.record(playerUids) {
                 playerStatisticsRepository.findRecentPlayerFormAppearanceRows(playerUids, FINISHED_STATUSES, perPlayerLimit)
             }
         return rows.groupBy(PlayerFormAppearanceRow::playerUid, ::toMatch)

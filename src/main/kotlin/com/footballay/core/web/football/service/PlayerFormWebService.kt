@@ -38,6 +38,7 @@ class PlayerFormWebService(
     ): DomainResult<PlayerFormResponse, DomainFail> {
         invalidLimit<PlayerFormResponse>(limit)?.let { return it }
         val uid = playerUid.trim()
+        if (uid.isEmpty()) return DomainResult.Fail(DomainFail.NotFound("PlayerCore", playerUid))
         return when (val result = loadForms(listOf(uid))) {
             is DomainResult.Fail -> result
             is DomainResult.Success -> {

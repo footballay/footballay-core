@@ -230,6 +230,7 @@ class PlayerFormControllerIntegrationTest {
             jsonPath("$.summary.overall.averageRating") { doesNotExist() }
         }
         mvc.get("/api/v1/football/players/unknown-player/form").andExpect { status { isNotFound() } }
+        mvc.get("/api/v1/football/players/{playerUid}/form", " ").andExpect { status { isNotFound() } }
     }
 
     @Test

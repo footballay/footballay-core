@@ -31,24 +31,36 @@ class PlayerFormQueryMetricsTest {
         metricsLogger.detachAppender(appender)
     }
 
+    private fun uids(count: Int) = (1..count).map { "player-$it" }
+
+    private fun slowQuery() = Thread.sleep(PlayerFormQueryMetrics.SLOW_QUERY_THRESHOLD.toMillis() + 20)
+
     @Test
     fun warnsOnlyWhenQueryIsSlowerThanThreshold() {
-        metrics.record(1) { "fast" }
+        metrics.record(uids(1)) { "fast" }
         assertThat(appender.list).isEmpty()
 
-        metrics.record(40) { Thread.sleep(PlayerFormQueryMetrics.SLOW_QUERY_THRESHOLD.toMillis() + 20) }
+        metrics.record(uids(40)) { slowQuery() }
 
         assertThat(appender.list).hasSize(1)
         val event = appender.list.single()
         assertThat(event.level).isEqualTo(Level.WARN)
-        assertThat(event.formattedMessage).contains("Slow player form query", "players=40", "playersBucket=21-100", "outcome=success")
+        assertThat(event.formattedMessage)
+            .contains("Slow player form query", "players=40", "playersBucket=21-100", "playerUid=-", "outcome=success")
+    }
+
+    @Test
+    fun slowSinglePlayerQueryLogsPlayerUid() {
+        metrics.record(listOf("busy-player")) { slowQuery() }
+
+        assertThat(appender.list.single().formattedMessage).contains("players=1", "playerUid=busy-player")
     }
 
     @Test
     fun recordsQueryTimeByPlayerBucketAndOutcome() {
-        metrics.record(1) { "single" }
-        metrics.record(40) { "lineup" }
-        assertThatThrownBy { metrics.record(5) { throw IllegalStateException("db down") } }
+        metrics.record(uids(1)) { "single" }
+        metrics.record(uids(40)) { "lineup" }
+        assertThatThrownBy { metrics.record(uids(5)) { throw IllegalStateException("db down") } }
             .isInstanceOf(IllegalStateException::class.java)
 
         val scrape = registry.scrape()
@@ -65,7 +77,7 @@ class PlayerFormQueryMetricsTest {
 
     @Test
     fun returnsQueryResult() {
-        assertThat(metrics.record(3) { listOf("a", "b") }).containsExactly("a", "b")
+        assertThat(metrics.record(uids(3)) { listOf("a", "b") }).containsExactly("a", "b")
     }
 
     @Test

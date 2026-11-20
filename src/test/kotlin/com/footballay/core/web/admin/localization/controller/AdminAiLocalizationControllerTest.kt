@@ -31,6 +31,7 @@ import org.springframework.http.MediaType
 import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.bean.override.mockito.MockitoBean
+import org.springframework.test.json.JsonCompareMode
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
 
@@ -191,15 +192,21 @@ class AdminAiLocalizationControllerTest(
 
     @WithMockUser(roles = ["ADMIN"])
     @Test
-    @DisplayName("malformed AI export은 AI import validation 응답으로 변환되지 않는다")
-    fun exportForAi_keepsExistingMalformedJsonResponse() {
+    @DisplayName("malformed AI export은 AI import 전용 응답 대신 v1 본문 오류를 반환한다")
+    fun exportForAi_returnsV1MalformedBodyResponse() {
         mockMvc
             .post("/api/v1/admin/localizations/ai-export") {
                 contentType = MediaType.APPLICATION_JSON
                 content = "{"
             }.andExpect {
                 status { isBadRequest() }
-                content { string("잘못된 요청입니다.") }
+                content {
+                    contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                    json(
+                        """{"code":"INVALID_REQUEST_BODY","message":"요청 본문 형식이 올바르지 않습니다."}""",
+                        JsonCompareMode.STRICT,
+                    )
+                }
             }
     }
 }

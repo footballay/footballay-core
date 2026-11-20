@@ -62,7 +62,7 @@ data class FixtureStatisticsModel(
         val photo: String?,
         val position: String?,
         val number: Int?,
-        val matchPlayerUid: String?,
+        val matchPlayerUid: String,
         val playerUid: String?,
     )
 

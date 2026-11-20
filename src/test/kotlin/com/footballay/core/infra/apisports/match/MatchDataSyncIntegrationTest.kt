@@ -1,6 +1,8 @@
 package com.footballay.core.infra.apisports.match
 
 import com.footballay.core.infra.persistence.apisports.entity.TeamApiSports
+import com.footballay.core.infra.persistence.apisports.entity.PlayerApiSports
+import com.footballay.core.infra.persistence.apisports.repository.PlayerApiSportsRepository
 import com.footballay.core.infra.persistence.core.entity.TeamCore
 import com.footballay.core.infra.persistence.apisports.repository.TeamApiSportsRepository
 import com.footballay.core.infra.dispatcher.match.MatchDataSyncDispatcher
@@ -9,6 +11,14 @@ import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayerStatistics
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
 import com.footballay.core.infra.persistence.apisports.repository.FixtureApiSportsRepository
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.module.kotlin.readValue
+import com.footballay.core.common.result.DomainResult
+import com.footballay.core.domain.model.match.FixtureLineupModel
+import com.footballay.core.infra.apisports.shared.fetch.impl.ApiSportsV3MockFetcher
+import com.footballay.core.infra.dispatcher.match.MatchDataSyncResult
+import com.footballay.core.infra.query.MatchDataQueryServiceImpl
 import com.footballay.core.logger
 import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
@@ -16,6 +26,9 @@ import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
@@ -55,6 +68,12 @@ import org.springframework.transaction.annotation.Transactional
 class MatchDataSyncIntegrationTest {
     @Autowired private lateinit var teamApiSportsRepository: TeamApiSportsRepository
     private val log = logger()
+
+    @Autowired private lateinit var playerApiSportsRepository: PlayerApiSportsRepository
+    @Autowired private lateinit var objectMapper: ObjectMapper
+    @Autowired private lateinit var mockFetcher: ApiSportsV3MockFetcher
+    @Autowired private lateinit var syncFacade: ApiSportsMatchEntitySyncFacade
+    @Autowired private lateinit var queryService: MatchDataQueryServiceImpl
 
     @Autowired
     private lateinit var apiSportsBackboneSyncFacade: ApiSportsBackboneSyncFacade
@@ -133,6 +152,137 @@ class MatchDataSyncIntegrationTest {
         log.info("========================================")
         log.info("사전 준비 완료 - 이제 Match 저장 테스트 시작")
         log.info("========================================")
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "true, true, null",
+        "true, true, missing",
+        "true, true, fields-null",
+        "true, false, present",
+        "false, true, present",
+        "false, false, null",
+    )
+    @DisplayName("포메이션·그리드와 코치 정보가 없어도 나머지 라인업을 저장하고 조회한다")
+    fun nullableLineupPreservesPlayers(formationNull: Boolean, gridNull: Boolean, coachState: String) {
+        val response = mockFetcher.fetchFixtureSingle(TEST_FIXTURE_API_ID)
+        val tree = objectMapper.valueToTree<ObjectNode>(response)
+        val lineups = tree["response"][0]["lineups"]
+        for (lineup in lineups) {
+            lineup as ObjectNode
+            if (formationNull) lineup.putNull("formation")
+            when (coachState) {
+                "null" -> lineup.putNull("coach")
+                "missing" -> lineup.remove("coach")
+                "fields-null" -> lineup.set<ObjectNode>(
+                    "coach",
+                    objectMapper.createObjectNode().putNull("id").putNull("name").putNull("photo"),
+                )
+            }
+            for (group in listOf("startXI", "substitutes")) {
+                for (entry in lineup[group]) {
+                    if (gridNull) (entry["player"] as ObjectNode).putNull("grid")
+                }
+            }
+        }
+        val parsed = objectMapper.readValue<ApiSportsFixtureSingle>(tree.toString())
+        syncAndAssertLineup(parsed)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["home-formation", "away-coach", "one-grid"])
+    @DisplayName("한 팀이나 한 선수의 정보 누락이 나머지 정상 데이터에 전파되지 않는다")
+    fun isolatedNullDoesNotAffectOtherLineupData(missing: String) {
+        val baseline = mockFetcher.fetchFixtureSingle(TEST_FIXTURE_API_ID)
+        val tree = objectMapper.valueToTree<ObjectNode>(baseline)
+        val lineups = tree["response"][0]["lineups"]
+        when (missing) {
+            "home-formation" -> (lineups[0] as ObjectNode).putNull("formation")
+            "away-coach" -> (lineups[1] as ObjectNode).remove("coach")
+            "one-grid" -> (lineups[0]["startXI"][0]["player"] as ObjectNode).putNull("grid")
+        }
+        syncAndAssertLineup(objectMapper.readValue(tree.toString()))
+    }
+
+    @Test
+    @DisplayName("정상·일부 null·정상 반복 수집에서도 선수 식별자와 이벤트·통계 연결을 유지한다")
+    fun repeatedNullableLineupPreservesIdentityAndRelatedData() {
+        val baseline = mockFetcher.fetchFixtureSingle(TEST_FIXTURE_API_ID)
+        // 이 사례는 정상 ID 선수의 반복 수집이며, Backbone 미수집에 따른 매칭 문제와 구분합니다.
+        playerApiSportsRepository.saveAll(baseline.response.first().lineups.flatMap { it.startXI + it.substitutes }.map {
+            PlayerApiSports(apiId = requireNotNull(it.player.id), name = it.player.name)
+        })
+        em.flush()
+        em.clear()
+        val original = syncAndAssertLineup(baseline)
+        val fixture = fixtureApiSportsRepository.findByApiId(TEST_FIXTURE_API_ID)!!
+        val identities = (fixture.homeTeam!!.players + fixture.awayTeam!!.players)
+            .associate { it.matchPlayerUid to it.id }
+        val events = (queryService.getFixtureEvents(testFixtureUid) as DomainResult.Success).value
+        val statistics = (queryService.getFixtureStatistics(testFixtureUid) as DomainResult.Success).value
+        val firstPlayer = baseline.response.first().lineups.first().startXI.first().player
+        assertThat(firstPlayer.grid).isNotNull()
+        assertThat(original.lineup.home!!.formation).isNotNull()
+
+        val tree = objectMapper.valueToTree<ObjectNode>(baseline)
+        val home = tree["response"][0]["lineups"][0] as ObjectNode
+        home.putNull("formation")
+        home.remove("coach")
+        (home["startXI"][0]["player"] as ObjectNode).putNull("grid")
+        val missing = objectMapper.readValue<ApiSportsFixtureSingle>(tree.toString())
+        val expectedMissing = original.copy(lineup = original.lineup.copy(
+            home = original.lineup.home!!.copy(
+                formation = null,
+                players = original.lineup.home!!.players.map {
+                    if (it.number == firstPlayer.number) it.copy(grid = null) else it
+                },
+            ),
+        ))
+
+        for ((response, expected) in listOf(missing to expectedMissing, baseline to original)) {
+            assertThat(syncAndAssertLineup(response)).isEqualTo(expected)
+            val saved = fixtureApiSportsRepository.findByApiId(TEST_FIXTURE_API_ID)!!
+            assertThat((saved.homeTeam!!.players + saved.awayTeam!!.players)
+                .associate { it.matchPlayerUid to it.id }).isEqualTo(identities)
+            assertThat((queryService.getFixtureEvents(testFixtureUid) as DomainResult.Success).value).isEqualTo(events)
+            assertThat((queryService.getFixtureStatistics(testFixtureUid) as DomainResult.Success).value).isEqualTo(statistics)
+        }
+    }
+
+    private fun syncAndAssertLineup(response: ApiSportsFixtureSingle): FixtureLineupModel {
+        val result = syncFacade.syncFixtureMatchEntities(FullMatchSyncDto.of(response))
+        assertThat(result).describedAs("Sync result: %s", result).isNotInstanceOf(MatchDataSyncResult.Error::class.java)
+        em.flush()
+        em.clear()
+
+        val fixture = fixtureApiSportsRepository.findByApiId(TEST_FIXTURE_API_ID)!!
+        val model = (queryService.getFixtureLineup(testFixtureUid) as DomainResult.Success).value
+        val persistedTeams = listOf(fixture.homeTeam!!, fixture.awayTeam!!)
+        val queriedTeams = listOf(model.lineup.home!!, model.lineup.away!!)
+        val allPlayers = persistedTeams.flatMap { it.players }
+        assertThat(allPlayers.map { it.matchPlayerUid }).doesNotContainNull().doesNotContain("").doesNotHaveDuplicates()
+        response.response.first().lineups.forEachIndexed { index, expected ->
+            val stored = persistedTeams[index]
+            val queried = queriedTeams[index]
+            val expectedPlayers = expected.startXI.map { it.player to false } + expected.substitutes.map { it.player to true }
+            assertThat(stored.teamApiSports!!.apiId).isEqualTo(expected.team.id)
+            assertThat(stored.formation).isEqualTo(expected.formation)
+            assertThat(queried.formation).isEqualTo(expected.formation)
+            assertThat(stored.players).hasSize(expectedPlayers.size)
+            assertThat(queried.players).hasSize(expected.startXI.size)
+            assertThat(queried.substitutes).hasSize(expected.substitutes.size)
+            for ((player, substitute) in expectedPlayers) {
+                val saved = stored.players.single { it.name == player.name }
+                assertThat(listOf(saved.number, saved.position, saved.grid, saved.substitute))
+                    .isEqualTo(listOf(player.number, player.pos ?: "Unknown", player.grid, substitute))
+                val actual = (queried.players + queried.substitutes).single { it.matchPlayerUid == saved.matchPlayerUid }
+                assertThat(actual.name).isEqualTo(saved.playerApiSports?.playerCore?.name ?: player.name)
+                assertThat(listOf(actual.number, actual.position, actual.grid, actual.substitute))
+                    .isEqualTo(listOf(player.number, player.pos ?: "Unknown", player.grid, substitute))
+                assertThat(actual.playerUid).isEqualTo(saved.playerApiSports?.playerCore?.uid)
+            }
+        }
+        return model
     }
 
     @Test

@@ -38,7 +38,7 @@ data class FixtureEventsModel(
         val playerId: Long? = null, // Deprecated: PK 노출 방지
         val name: String?,
         val number: Int?,
-        val matchPlayerUid: String?,
+        val matchPlayerUid: String,
         val playerUid: String?,
     )
 }

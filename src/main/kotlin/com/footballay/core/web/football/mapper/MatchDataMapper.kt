@@ -152,7 +152,7 @@ class MatchDataMapper {
         val player =
             player?.let {
                 FixtureEventsResponse.PlayerInfo(
-                    matchPlayerUid = it.matchPlayerUid.orEmpty(),
+                    matchPlayerUid = it.matchPlayerUid,
                     playerUid = it.playerUid,
                     name = it.name.orEmpty(),
                     shortName = null,
@@ -162,7 +162,7 @@ class MatchDataMapper {
         val assist =
             assist?.let {
                 FixtureEventsResponse.PlayerInfo(
-                    matchPlayerUid = it.matchPlayerUid.orEmpty(),
+                    matchPlayerUid = it.matchPlayerUid,
                     playerUid = it.playerUid,
                     name = it.name.orEmpty(),
                     shortName = null,
@@ -296,7 +296,7 @@ class MatchDataMapper {
     private fun FixtureStatisticsModel.PlayerWithStatistics.toResponse(): FixtureStatisticsResponse.PlayerWithStatistics {
         val player =
             FixtureStatisticsResponse.PlayerInfo(
-                matchPlayerUid = player.matchPlayerUid.orEmpty(),
+                matchPlayerUid = player.matchPlayerUid,
                 playerUid = player.playerUid,
                 name = player.name.orEmpty(),
                 shortName = null,

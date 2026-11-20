@@ -16,7 +16,9 @@ import java.time.Instant
  * 저장하지 않고 요청마다 계산합니다. 종료된 경기의 기록은 바뀌지 않으므로, [asOf] 를 과거 시각으로 주면
  * "그 시점에 계산했을 점수"를 언제든 다시 얻을 수 있습니다. 경기 보기 전 점수와 체감을 비교할 때 이 값을 씁니다.
  *
- * 예외는 [PlayerFormFacade] 와 같은 이유로 트랜잭션 밖에서 [DomainFail.Unknown] 으로 바꿉니다 (#49).
+ * 예외는 밖으로 내보내지 않고 [DomainFail.Unknown] 으로 바꿉니다. 이 변환이 동작하도록 Facade 에는 트랜잭션을 두지 않습니다.
+ * 트랜잭션 안에서 예외를 잡으면 rollback-only 표시 때문에 커밋 시점에 예외가 다시 나갑니다. 조회는 Query Service 의
+ * 읽기 전용 트랜잭션으로 실행됩니다. 예외·실패 처리 규칙의 공통화는 #49 에서 다룹니다.
  */
 @Service
 class LeagueFormFacade(

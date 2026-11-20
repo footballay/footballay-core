@@ -3,7 +3,6 @@ package com.footballay.core.web.football.localization
 import com.footballay.core.domain.model.FixtureModel
 import com.footballay.core.domain.model.LeagueModel
 import com.footballay.core.domain.model.match.*
-import com.footballay.core.domain.model.player.PlayerFormModel
 import com.footballay.core.infra.persistence.core.repository.LeagueCoreLocalizationRepository
 import com.footballay.core.infra.persistence.core.repository.PlayerCoreLocalizationRepository
 import com.footballay.core.infra.persistence.core.repository.TeamCoreLocalizationRepository
@@ -128,26 +127,6 @@ class FootballResponseLocalizationService(
         return localizeStatistics(model, teamNames, playerNames)
     }
 
-    /** 여러 선수의 폼에 다국어를 적용합니다. 선수 이름과 팀 이름은 locale 별로 한 번씩만 조회합니다. */
-    fun localizePlayerForms(
-        models: List<PlayerFormModel>,
-        locale: SupportedLocale,
-    ): List<LocalizedPlayerFormModel> {
-        if (models.isEmpty()) return emptyList()
-        val locales = requestLocales(locale)
-        val teamDefaults =
-            namesByUid(
-                models.flatMap { model ->
-                    model.matches.flatMap { match -> listOfNotNull(match.home, match.away).map { it.teamUid to it.name } }
-                },
-            )
-        val teamNames = resolveTeamNames(teamDefaults, locales).getValue(locale)
-        val playerDefaults = namesByUid(models.map { it.player.playerUid to it.player.name })
-        val playerNames = resolvePlayerNames(playerDefaults, locales).getValue(locale)
-
-        return models.map { model -> localizePlayerForm(model, teamNames, playerNames) }
-    }
-
     fun preparePollingModels(
         lineup: FixtureLineupModel?,
         events: FixtureEventsModel?,
@@ -196,48 +175,6 @@ class FootballResponseLocalizationService(
             shortName = localizedName.shortName,
             logo = team.logo,
             playerColor = team.playerColor,
-        )
-    }
-
-    private fun localizePlayerForm(
-        model: PlayerFormModel,
-        teamNames: Map<String, LocalizedName>,
-        playerNames: Map<String, LocalizedName>,
-    ): LocalizedPlayerFormModel {
-        val playerName = playerNames.nameFor(model.player.playerUid, model.player.name)
-
-        return LocalizedPlayerFormModel(
-            player =
-                LocalizedPlayerFormModel.Player(
-                    playerUid = model.player.playerUid,
-                    name = playerName.name,
-                    shortName = playerName.shortName,
-                ),
-            summary = model.summary,
-            matches =
-                model.matches.map { match ->
-                    LocalizedPlayerFormModel.Match(
-                        fixtureUid = match.fixtureUid,
-                        kickoff = match.kickoff,
-                        home = match.home?.let { localizePlayerFormTeam(it, teamNames) },
-                        away = match.away?.let { localizePlayerFormTeam(it, teamNames) },
-                        playerTeamUid = match.playerTeamUid,
-                        stats = match.stats,
-                    )
-                },
-        )
-    }
-
-    private fun localizePlayerFormTeam(
-        team: PlayerFormModel.Team,
-        names: Map<String, LocalizedName>,
-    ): LocalizedPlayerFormModel.Team {
-        val localizedName = names.nameFor(team.teamUid, team.name)
-
-        return LocalizedPlayerFormModel.Team(
-            teamUid = team.teamUid,
-            name = localizedName.name,
-            shortName = localizedName.shortName,
         )
     }
 

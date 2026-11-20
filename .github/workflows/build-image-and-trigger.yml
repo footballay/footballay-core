@@ -28,9 +28,13 @@ env:
   IMAGE_NAME: ghcr.io/footballay/footballay-core
 
 jobs:
+  # [CI] runner 버전 고정 - 2026/11/20
+  # ubuntu-latest가 ubuntu-26.04(Docker 29)로 이동하면서, Testcontainers 1.19.x/1.20.x가 쓰는
+  # Docker API 1.32를 Docker 29가 거부해 Testcontainers 기반 테스트가 대량 실패했다.
+  # Docker 28이 설치된 ubuntu-24.04로 고정한다. Testcontainers를 1.21.4 이상으로 올린 뒤 해제를 검토한다.
   build-test:
     name: Test and bootJar
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
@@ -74,6 +78,9 @@ jobs:
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
+      - name: Show Docker version
+        run: docker version
+
       - name: Run tests
         if: github.event.inputs.skip_tests == 'false'
         run: ./gradlew test --build-cache
@@ -100,7 +107,7 @@ jobs:
 
   docker-build-push:
     name: Build and push Docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-test
 
     outputs:
@@ -157,7 +164,7 @@ jobs:
 
   trigger-private:
     name: Trigger private deploy repo
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: docker-build-push
     if: github.event.inputs.trigger_private == 'true'
 

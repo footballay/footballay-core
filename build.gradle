@@ -18,6 +18,9 @@ group = 'com.footballay'
 version = '0.2.1'
 
 ext['kotlin.version'] = '2.3.21'
+// Docker 29 이상은 Docker API 1.32 접속을 거부하므로 Docker 29 지원 버전(1.21.4+)을 사용한다. (2026/11/20)
+// Spring Boot BOM 속성으로 지정해 org.testcontainers 모듈 전체를 같은 버전으로 맞춘다.
+ext['testcontainers.version'] = '1.21.4'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -133,8 +136,8 @@ dependencies {
 
     // 테스트용 레디스 컨테이너
     testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
-    testImplementation 'org.testcontainers:testcontainers:1.19.5'
-    testImplementation 'org.testcontainers:junit-jupiter:1.19.5'
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:postgresql'
     testImplementation 'com.redis.testcontainers:testcontainers-redis:1.6.4'
 

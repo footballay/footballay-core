@@ -39,7 +39,7 @@ class QueryPerformanceIndexMigrationIntegrationTest {
                     VALUES ('index-player', 'Player', 'M', false);
                 """.trimIndent())
             }
-            val migration = flyway()
+            val migration = flyway("16")
             assertThat(migration.migrate().migrationsExecuted).isEqualTo(1)
             migration.validate()
             val expected = mapOf(

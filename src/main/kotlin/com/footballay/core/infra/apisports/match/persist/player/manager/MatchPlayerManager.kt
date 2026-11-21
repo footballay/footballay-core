@@ -12,8 +12,10 @@ import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatc
 import com.footballay.core.infra.persistence.apisports.entity.live.UniformColor
 import com.footballay.core.infra.persistence.apisports.repository.PlayerApiSportsRepository
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchPlayerRepository
+import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchPlayerStatisticsRepository
 import com.footballay.core.infra.util.UidGenerator
 import com.footballay.core.logger
+import org.hibernate.Hibernate
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
@@ -28,6 +30,7 @@ class MatchPlayerManager(
     private val matchPlayerRepository: ApiSportsMatchPlayerRepository,
     private val playerApiSportsRepository: PlayerApiSportsRepository,
     private val uidGenerator: UidGenerator,
+    private val playerStatsRepository: ApiSportsMatchPlayerStatisticsRepository,
 ) {
     private val log = logger()
 
@@ -259,6 +262,8 @@ class MatchPlayerManager(
                 !players.any { it.matchPlayerUid == existingPlayer.matchPlayerUid }
             }
         if (toDelete.isNotEmpty()) {
+            deleteLoadedStatsOf(toDelete, entityBundle)
+            detachFromMatchTeamPlayers(toDelete)
             matchPlayerRepository.deleteAll(toDelete)
             log.info("Deleted {} MatchPlayers", toDelete.size)
         }
@@ -274,6 +279,41 @@ class MatchPlayerManager(
         }
 
         return allPlayers
+    }
+
+    /**
+     * 삭제 대상 선수의 로드된 PlayerStatistics를 선수보다 먼저 삭제합니다.
+     *
+     * DB FK는 `ON DELETE CASCADE`(V14)이지만, 통계 엔티티가 영속성 컨텍스트에 managed 상태로 남아 있으면
+     * flush 시 Hibernate가 "삭제된 선수를 참조하는 영속 엔티티"로 판단해 `TransientObjectException`을 던집니다.
+     * 로드되지 않은 통계 행은 DB cascade가 처리합니다.
+     */
+    private fun deleteLoadedStatsOf(
+        toDelete: List<ApiSportsMatchPlayer>,
+        entityBundle: MatchEntityBundle,
+    ) {
+        val statsToDelete = toDelete.mapNotNull { entityBundle.playerStatsByMatchPlayerUid[it.matchPlayerUid] }
+        if (statsToDelete.isNotEmpty()) {
+            playerStatsRepository.deleteAll(statsToDelete)
+            log.info("Deleted {} PlayerStatistics of deleted MatchPlayers", statsToDelete.size)
+        }
+    }
+
+    /**
+     * 삭제 대상 선수를 부모 [ApiSportsMatchTeam.players] 컬렉션에서 제거합니다.
+     *
+     * `ApiSportsMatchTeam.players`는 `CascadeType.ALL`이므로, 로드된 컬렉션에 삭제 대상이 남아 있으면
+     * flush 시 PERSIST cascade가 전파되어 Hibernate가 삭제 예약을 취소합니다(DELETE 쿼리 미발생).
+     * 초기화되지 않은 컬렉션은 flush 시 cascade 대상이 아니므로 불필요한 로딩을 피하기 위해 건너뜁니다.
+     */
+    private fun detachFromMatchTeamPlayers(toDelete: List<ApiSportsMatchPlayer>) {
+        toDelete
+            .mapNotNull { it.matchTeam }
+            .distinctBy { System.identityHashCode(it) }
+            .filter { Hibernate.isInitialized(it.players) }
+            .forEach { team ->
+                team.players.removeIf { player -> toDelete.any { it === player } }
+            }
     }
 
     /** PlayerApiSports를 배치 조회하여 연결합니다. (N+1 방지) */

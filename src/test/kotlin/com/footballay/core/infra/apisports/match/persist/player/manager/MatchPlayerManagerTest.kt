@@ -11,6 +11,7 @@ import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatc
 import com.footballay.core.infra.persistence.apisports.entity.live.UniformColor
 import com.footballay.core.infra.persistence.apisports.repository.PlayerApiSportsRepository
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchPlayerRepository
+import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchPlayerStatisticsRepository
 import com.footballay.core.infra.util.UidGenerator
 import com.footballay.core.logger
 import org.assertj.core.api.Assertions.assertThat
@@ -36,6 +37,9 @@ class MatchPlayerManagerTest {
     @Mock
     private lateinit var uidGenerator: UidGenerator
 
+    @Mock
+    private lateinit var playerStatsRepository: ApiSportsMatchPlayerStatisticsRepository
+
     private lateinit var matchPlayerManager: MatchPlayerManager
 
     @BeforeEach
@@ -45,6 +49,7 @@ class MatchPlayerManagerTest {
                 matchPlayerRepository,
                 playerApiSportsRepository,
                 uidGenerator,
+                playerStatsRepository,
             )
     }
 

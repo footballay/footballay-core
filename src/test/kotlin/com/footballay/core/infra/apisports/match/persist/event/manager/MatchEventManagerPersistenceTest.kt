@@ -129,8 +129,10 @@ class MatchEventManagerPersistenceTest {
         return result
     }
 
-    private fun remainingEvents(fixtureId: Long): List<ApiSportsMatchEvent> =
-        matchEventRepository.findByFixtureOrderBySequenceAsc(fixtureRepository.getReferenceById(fixtureId))
+    private fun remainingEvents(fixtureId: Long): List<ApiSportsMatchEvent> {
+        val fixture = fixtureRepository.getReferenceById(fixtureId)
+        return matchEventRepository.findByFixtureOrderBySequenceAsc(fixture)
+    }
 
     private fun eventOf(
         fixture: FixtureApiSports,

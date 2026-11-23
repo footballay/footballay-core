@@ -12,6 +12,7 @@ import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatc
 import com.footballay.core.infra.persistence.apisports.entity.live.UniformColor
 import com.footballay.core.infra.persistence.apisports.repository.PlayerApiSportsRepository
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchPlayerRepository
+import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchPlayerStatisticsRepository
 import com.footballay.core.infra.util.UidGenerator
 import com.footballay.core.logger
 import org.springframework.stereotype.Component
@@ -28,6 +29,7 @@ class MatchPlayerManager(
     private val matchPlayerRepository: ApiSportsMatchPlayerRepository,
     private val playerApiSportsRepository: PlayerApiSportsRepository,
     private val uidGenerator: UidGenerator,
+    private val playerStatsRepository: ApiSportsMatchPlayerStatisticsRepository,
 ) {
     private val log = logger()
 
@@ -259,6 +261,9 @@ class MatchPlayerManager(
                 !players.any { it.matchPlayerUid == existingPlayer.matchPlayerUid }
             }
         if (toDelete.isNotEmpty()) {
+            deleteLoadedStatsOf(toDelete, entityBundle)
+            // players는 cascade=ALL이라, 컬렉션에 남아 있으면 flush 시 삭제가 취소된다
+            toDelete.forEach { it.matchTeam?.players?.remove(it) }
             matchPlayerRepository.deleteAll(toDelete)
             log.info("Deleted {} MatchPlayers", toDelete.size)
         }
@@ -274,6 +279,26 @@ class MatchPlayerManager(
         }
 
         return allPlayers
+    }
+
+    /**
+     * 삭제 대상 선수의 로드된 PlayerStatistics를 선수보다 먼저 삭제합니다.
+     *
+     * 선수를 삭제할 때는 영속성 컨텍스트에 선수와의 연관관계가 잔존하지 않도록 양쪽을 모두 제거합니다.
+     * - 팀 쪽: `ApiSportsMatchTeam.players`(cascade=ALL) 컬렉션에서 제거합니다. 남아 있으면 flush 시 삭제가 취소됩니다.
+     * - 통계 쪽: 선수를 참조하는 통계 엔티티를 삭제합니다. 남아 있으면 flush 시 `TransientObjectException`이 발생합니다.
+     *
+     * 로드되지 않은 통계 행은 DB FK의 `ON DELETE CASCADE`(V14)가 처리합니다.
+     */
+    private fun deleteLoadedStatsOf(
+        toDelete: List<ApiSportsMatchPlayer>,
+        entityBundle: MatchEntityBundle,
+    ) {
+        val statsToDelete = toDelete.mapNotNull { entityBundle.playerStatsByMatchPlayerUid[it.matchPlayerUid] }
+        if (statsToDelete.isNotEmpty()) {
+            playerStatsRepository.deleteAll(statsToDelete)
+            log.info("Deleted {} PlayerStatistics of deleted MatchPlayers", statsToDelete.size)
+        }
     }
 
     /** PlayerApiSports를 배치 조회하여 연결합니다. (N+1 방지) */

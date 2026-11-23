@@ -5,15 +5,14 @@ import com.footballay.core.infra.apisports.match.plan.context.MatchEntityBundle
 import com.footballay.core.infra.apisports.match.plan.dto.MatchEventDto
 import com.footballay.core.infra.apisports.match.plan.dto.MatchEventPlanDto
 import com.footballay.core.infra.apisports.match.persist.event.planner.MatchEventChangeSet
+import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchEvent
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchEventRepository
 import com.footballay.core.logger
-import org.hibernate.Hibernate
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
 // for docs
-import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchTeam
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchPlayer
 
@@ -73,7 +72,7 @@ class MatchEventManager(
             )
 
             // Event 엔티티 저장 - 데이터베이스에 변경사항 적용
-            val savedEvents = persistEventChanges(eventChangeSet)
+            val savedEvents = persistEventChanges(eventChangeSet, entityBundle.fixture!!)
 
             // EntityBundle 업데이트 - sequence 순으로 정렬하여 반영
             val sortedEvents = savedEvents.sortedBy { it.sequence }
@@ -119,13 +118,17 @@ class MatchEventManager(
     }
 
     /** 변경사항을 데이터베이스에 저장합니다. (실패 시 빈 이벤트로 대체) */
-    private fun persistEventChanges(changeSet: MatchEventChangeSet): List<ApiSportsMatchEvent> {
+    private fun persistEventChanges(
+        changeSet: MatchEventChangeSet,
+        fixture: FixtureApiSports,
+    ): List<ApiSportsMatchEvent> {
         val allEvents = mutableListOf<ApiSportsMatchEvent>()
 
         try {
             // 1. 삭제 처리 - orphan 엔티티들을 먼저 삭제
             if (changeSet.toDelete.isNotEmpty()) {
-                detachFromFixtureEvents(changeSet.toDelete)
+                // events는 cascade=ALL이라, 컬렉션에 남아 있으면 flush 시 삭제가 취소된다
+                fixture.events.removeAll(changeSet.toDelete)
                 matchEventRepository.deleteAll(changeSet.toDelete)
                 log.info("Deleted {} MatchEvents", changeSet.toDelete.size)
             }
@@ -146,24 +149,6 @@ class MatchEventManager(
         }
 
         return allEvents
-    }
-
-    /**
-     * 삭제 대상 이벤트를 부모 [FixtureApiSports.events] 컬렉션에서 제거합니다.
-     *
-     * `FixtureApiSports.events`는 `CascadeType.ALL`이므로, 로드된 컬렉션에 삭제 대상이 남아 있으면
-     * flush 시 PERSIST cascade가 전파되어 Hibernate가 삭제 예약을 취소합니다(DELETE 쿼리 미발생).
-     * [ApiSportsMatchEvent.equals]는 sequence 기반이므로 객체 동일성(===)으로 제거합니다.
-     * 초기화되지 않은 컬렉션은 flush 시 cascade 대상이 아니므로 불필요한 로딩을 피하기 위해 건너뜁니다.
-     */
-    private fun detachFromFixtureEvents(toDelete: List<ApiSportsMatchEvent>) {
-        toDelete
-            .map { it.fixtureApi }
-            .distinctBy { System.identityHashCode(it) }
-            .filter { Hibernate.isInitialized(it.events) }
-            .forEach { fixture ->
-                fixture.events.removeIf { event -> toDelete.any { it === event } }
-            }
     }
 
     /** 실패한 이벤트를 빈 이벤트(UNKNOWN)로 대체합니다. */

@@ -95,6 +95,9 @@ data class Observation(
     val amount: Double,
     val exposure: Double,
 ) {
+    /** 누적량 / 기준량. 기준량이 0 이면 null */
+    val rate: Double? get() = if (exposure > 0) amount / exposure else null
+
     operator fun plus(other: Observation) = Observation(amount + other.amount, exposure + other.exposure)
 
     companion object {

@@ -1,12 +1,13 @@
 package com.footballay.core.domain.playerform
 
 /**
- * 폼 점수 알고리즘의 조정 가능한 값을 한곳에 모읍니다.
+ * 폼 점수 계산에 쓰는 조정값입니다. 계산 방법(공식)은 [ShrinkageEstimator] 와 [FormScoring] 에 있고,
+ * 여기에는 "얼마나"에 해당하는 숫자만 둡니다.
  *
- * 계산 방법을 바꿀 때는 이 값을 바꾸고 [version] 을 올립니다. 응답에 버전이 실리므로
- * admin 에서 체감 검증한 결과가 어느 버전의 것인지 구분할 수 있습니다.
+ * 값을 바꿀 때는 [version] 을 올립니다. 응답에 버전이 실리므로 admin 에서 체감 검증한 결과가
+ * 어느 버전의 것인지 구분할 수 있습니다.
  */
-interface PlayerFormAlgorithm {
+interface PlayerFormParameters {
     val version: Int
 
     /** 사전분포 추정에 필요한 포지션별 최소 선수 수. 미만이면 k 를 상한으로 둡니다. */
@@ -15,12 +16,23 @@ interface PlayerFormAlgorithm {
     /** 포지션별로 점수에 쓰는 지표와 가중치. 여기에 없는 포지션의 선수는 점수를 받지 않습니다. */
     val weightsByPosition: Map<String, Map<FormMetric, Double>>
 
+    /** 점수가 이 값 이상이면 "높음" */
+    val highScore: Double
+
+    /** 점수가 이 값 이하면 "낮음" */
+    val lowScore: Double
+
+    /** 팀의 최근 N경기 전체 시간 중 이 비율 이상 뛰었으면 근거가 충분하다고 봅니다 */
+    val enoughMinutesShare: Double
+
+    /** WATCH 로 표시하려면 최소한 이 비율은 뛰어야 합니다 */
+    val minWatchMinutesShare: Double
+
     fun kBounds(metric: FormMetric): KBounds
 
-    fun category(
-        score: Double,
-        minutesShare: Double,
-    ): FormCategory
+    val positions: Set<String> get() = weightsByPosition.keys
+
+    fun weightsOf(position: String): Map<FormMetric, Double> = weightsByPosition.getValue(position)
 }
 
 enum class FormCategory {
@@ -45,7 +57,7 @@ enum class FormCategory {
  * 가중치는 "이 포지션에 어떤 지표가 중요한가"에 대한 초안이며, admin 체감 검증으로 조정할 대상입니다.
  * 골·어시스트처럼 드문 지표는 축소가 강하게 걸리므로 가중치가 커도 몇 경기 결과에 크게 흔들리지 않습니다.
  */
-object PlayerFormAlgorithmV1 : PlayerFormAlgorithm {
+object PlayerFormParametersV1 : PlayerFormParameters {
     override val version = 1
     override val minPlayersForEstimation = 10
 
@@ -90,18 +102,15 @@ object PlayerFormAlgorithmV1 : PlayerFormAlgorithm {
                 ),
         )
 
-    /** 점수가 이 값 이상이면 "높음", [LOW_SCORE] 이하면 "낮음" */
-    const val HIGH_SCORE = 65.0
-    const val LOW_SCORE = 35.0
-
-    /** 팀의 최근 N경기 전체 시간 중 이 비율 이상 뛰었으면 근거가 충분하다고 봅니다 */
-    const val ENOUGH_MINUTES_SHARE = 0.5
+    override val highScore = 65.0
+    override val lowScore = 35.0
+    override val enoughMinutesShare = 0.5
 
     /**
-     * WATCH 로 표시하려면 최소한 이 비율은 뛰어야 합니다 (5경기 기준 약 70분).
-     * 백분위는 축소 후 값의 작은 차이도 순위 차이로 키우므로, 10분 출전의 한 골만으로 WATCH 가 되지 않게 막습니다.
+     * 5경기 기준 약 70분. 백분위는 축소 후 값의 작은 차이도 순위 차이로 키우므로,
+     * 10분 출전의 한 골만으로 WATCH 가 되지 않게 막습니다.
      */
-    const val MIN_WATCH_MINUTES_SHARE = 0.15
+    override val minWatchMinutesShare = 0.15
 
     override fun kBounds(metric: FormMetric): KBounds =
         when (metric) {
@@ -111,18 +120,4 @@ object PlayerFormAlgorithmV1 : PlayerFormAlgorithm {
             FormMetric.RATING -> KBounds(min = 1.0, max = 40.0)
             else -> KBounds(min = 90.0, max = 5400.0)
         }
-
-    override fun category(
-        score: Double,
-        minutesShare: Double,
-    ): FormCategory {
-        val enoughEvidence = minutesShare >= ENOUGH_MINUTES_SHARE
-        return when {
-            score >= HIGH_SCORE && enoughEvidence -> FormCategory.IN_FORM
-            score >= HIGH_SCORE && minutesShare >= MIN_WATCH_MINUTES_SHARE -> FormCategory.WATCH
-            score <= LOW_SCORE && enoughEvidence -> FormCategory.POOR
-            !enoughEvidence -> FormCategory.LOW_EVIDENCE
-            else -> FormCategory.NEUTRAL
-        }
-    }
 }

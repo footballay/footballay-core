@@ -22,8 +22,9 @@ data class AdminQualityResultSummaryResponse(
     val provider: FootballDataProvider,
     val endpointKey: String,
     val parameters: List<AdminQualityResultParameterResponse>,
+    val collectedAt: Instant,
     val checkedAt: Instant,
-    val scannerVersion: String,
+    val inspectionVersion: Int,
     val hasIssue: Boolean,
     val issueCount: Int,
     val maxSeverity: DataQualityMaxSeverity,
@@ -38,8 +39,9 @@ data class AdminQualityResultDetailResponse(
     val endpointKey: String,
     val parameters: List<AdminQualityResultParameterResponse>,
     val canonicalHash: String,
+    val collectedAt: Instant,
     val checkedAt: Instant,
-    val scannerVersion: String,
+    val inspectionVersion: Int,
     val hasIssue: Boolean,
     val issueCount: Int,
     val maxSeverity: DataQualityMaxSeverity,
@@ -59,13 +61,18 @@ data class AdminQualityIssueResponse(
     val issueInstanceId: String,
     val suggestedTypeCode: String,
     val confirmedTypeCode: String?,
+    val inspectionCode: String,
     val checkStatus: DataQualityIssueCheckStatus,
     val severity: DataQualityIssueSeverity,
     val title: String,
     val responseLocation: AdminQualityIssueResponseLocationResponse,
-    val evidence: Map<String, Any?>,
+    val evidence: AdminQualityIssueEvidenceResponse?,
     val createdAt: Instant,
     val updatedAt: Instant,
+)
+
+data class AdminQualityIssueEvidenceResponse(
+    val values: Map<String, String?>,
 )
 
 data class AdminQualityIssueResponseLocationResponse(

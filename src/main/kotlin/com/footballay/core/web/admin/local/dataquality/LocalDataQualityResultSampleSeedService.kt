@@ -8,6 +8,7 @@ import com.footballay.core.infra.dataquality.result.model.DataQualityIssueSeveri
 import com.footballay.core.infra.dataquality.result.model.DataQualityMaxSeverity
 import com.footballay.core.infra.dataquality.result.model.DataQualityMongoCollections
 import com.footballay.core.infra.dataquality.result.model.QualityIssueDocument
+import com.footballay.core.infra.dataquality.result.model.QualityIssueEvidenceDocument
 import com.footballay.core.infra.dataquality.result.model.QualityIssueResponseLocationDocument
 import com.footballay.core.infra.dataquality.result.model.QualityResultArchiveDocument
 import com.footballay.core.infra.dataquality.result.model.QualityResultDocument
@@ -51,8 +52,9 @@ class LocalDataQualityResultSampleSeedService(
             rawJsonObjectKey =
                 "data-quality/raw/api-sports/fixtureSingle/2026/07/07/fixtureId-1208397/" +
                     "20260707T120000Z_sample-need-check.json.gz",
+            collectedAt = COLLECTED_AT,
             checkedAt = CHECKED_AT,
-            scannerVersion = "local-sample-v1",
+            inspectionVersion = 1,
             hasIssue = true,
             issueCount = 1,
             maxSeverity = DataQualityMaxSeverity.WARN,
@@ -61,25 +63,18 @@ class LocalDataQualityResultSampleSeedService(
                 listOf(
                     QualityIssueDocument(
                         issueInstanceId = "01JZLOCALISSUE000000000001",
-                        suggestedTypeCode = "EVENT_SUB_NO_PLAYER",
+                        suggestedTypeCode = "UNEXPECTED_NULL",
                         confirmedTypeCode = null,
+                        inspectionCode = "APISPORTS:FIXTURE_SINGLE:FIXTURE:TIMEZONE_NULL",
                         checkStatus = DataQualityIssueCheckStatus.NEED_CHECK,
                         severity = DataQualityIssueSeverity.WARN,
-                        title = "Substitution event has no player",
+                        title = "Fixture timezone is null",
                         responseLocation =
                             QualityIssueResponseLocationDocument(
-                                section = "events",
-                                path = "$.response[0].events[32]",
+                                section = "fixture",
+                                path = "$.response[0].fixture.timezone",
                             ),
-                        evidence =
-                            mapOf(
-                                "rawFragment" to
-                                    mapOf(
-                                        "type" to "subst",
-                                        "player" to null,
-                                        "assist" to null,
-                                    ),
-                            ),
+                        evidence = QualityIssueEvidenceDocument(values = mapOf("timezone" to null)),
                         createdAt = CHECKED_AT,
                         updatedAt = CHECKED_AT,
                     ),
@@ -100,8 +95,9 @@ class LocalDataQualityResultSampleSeedService(
             rawJsonObjectKey =
                 "data-quality/raw/api-sports/fixtureSingle/2026/07/07/fixtureId-1208021/" +
                     "20260707T120500Z_sample-no-issue.json.gz",
+            collectedAt = COLLECTED_AT.plusSeconds(300),
             checkedAt = CHECKED_AT.plusSeconds(300),
-            scannerVersion = "local-sample-v1",
+            inspectionVersion = 1,
             hasIssue = false,
             issueCount = 0,
             maxSeverity = DataQualityMaxSeverity.NONE,
@@ -113,6 +109,7 @@ class LocalDataQualityResultSampleSeedService(
         )
 
     private companion object {
+        private val COLLECTED_AT: Instant = Instant.parse("2026-07-07T12:00:00Z")
         private val CHECKED_AT: Instant = Instant.parse("2026-07-07T12:01:32Z")
     }
 }

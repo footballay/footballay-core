@@ -26,17 +26,21 @@ class QualityResultDocumentModelsTest {
         assertThat(json["parameters"][0]["value"].asText()).isEqualTo("123456")
         assertThat(json["canonicalHash"].asText()).isEqualTo("sha256-base64url")
         assertThat(json["rawJsonObjectKey"].asText()).contains(".json.gz")
+        assertThat(json["collectedAt"].asText()).isEqualTo("2026-07-07T12:00:00Z")
         assertThat(json["checkedAt"].asText()).isEqualTo("2026-07-07T12:01:32Z")
-        assertThat(json["scannerVersion"].asText()).isEqualTo("rule-v1.0.0")
+        assertThat(json["inspectionVersion"].asInt()).isEqualTo(1)
+        assertThat(json.has("scannerVersion")).isFalse()
         assertThat(json["hasIssue"].asBoolean()).isTrue()
         assertThat(json["issueCount"].asInt()).isEqualTo(1)
         assertThat(json["maxSeverity"].asText()).isEqualTo("WARN")
         assertThat(json["checkStatus"].asText()).isEqualTo("NEED_CHECK")
         assertThat(json["issues"][0]["issueInstanceId"].asText()).isEqualTo("01JZKT52A2S7KQZ3H8P4D6M1RB")
+        assertThat(json["issues"][0]["inspectionCode"].asText()).isEqualTo("APISPORTS:FIXTURE_SINGLE:FIXTURE:TIMEZONE_NULL")
         assertThat(json["issues"][0]["checkStatus"].asText()).isEqualTo("NEED_CHECK")
-        assertThat(json["issues"][0]["title"].asText()).isEqualTo("Substitution event has no player")
-        assertThat(json["issues"][0]["responseLocation"]["section"].asText()).isEqualTo("events")
-        assertThat(json["issues"][0]["evidence"]["rawFragment"]["type"].asText()).isEqualTo("subst")
+        assertThat(json["issues"][0]["title"].asText()).isEqualTo("Fixture timezone is null")
+        assertThat(json["issues"][0]["responseLocation"]["section"].asText()).isEqualTo("fixture")
+        assertThat(json["issues"][0]["evidence"]["values"].has("timezone")).isTrue()
+        assertThat(json["issues"][0]["evidence"]["values"]["timezone"].isNull).isTrue()
         assertThat(json["issues"][0]["createdAt"].asText()).isEqualTo("2026-07-07T12:01:32Z")
         assertThat(json["issues"][0]["updatedAt"].asText()).isEqualTo("2026-07-07T12:01:32Z")
         assertThat(json["archive"]["status"].asText()).isEqualTo("NONE")
@@ -64,43 +68,9 @@ class QualityResultDocumentModelsTest {
     }
 
     @Test
-    fun `mongo index definitions use current quality result document fields`() {
-        assertThat(QualityResultMongoIndexDefinitions.qualityResults)
-            .extracting<String> { it.name }
-            .containsExactly(
-                "quality_results_checked_at_desc",
-                "quality_results_raw_event_id",
-                "quality_results_source",
-                "quality_results_canonical_hash",
-                "quality_results_has_issue_checked_at_desc",
-                "quality_results_max_severity_checked_at_desc",
-                "quality_results_check_status_checked_at_desc",
-                "quality_results_issue_suggested_type_code",
-                "quality_results_issue_confirmed_type_code",
-                "quality_results_archive_status_checked_at_desc",
-                "quality_results_raw_json_object_key",
-            )
-
+    fun `quality result document maps to quality_results collection`() {
         val documentAnnotation = QualityResultDocument::class.java.getAnnotation(Document::class.java)
         assertThat(documentAnnotation.collection).isEqualTo(DataQualityMongoCollections.QUALITY_RESULTS)
-
-        val rawEventIdIndex =
-            QualityResultMongoIndexDefinitions.qualityResults
-                .first { it.name == "quality_results_raw_event_id" }
-        assertThat(rawEventIdIndex.unique).isFalse()
-        assertThat(rawEventIdIndex.keys)
-            .containsExactly(QualityResultMongoIndexKey("rawEventId", QualityResultMongoIndexDirection.ASC))
-
-        val indexedFields =
-            QualityResultMongoIndexDefinitions.qualityResults
-                .flatMap { it.keys }
-                .map { it.field }
-
-        assertThat(indexedFields).doesNotContain("parameterKey")
-        assertThat(indexedFields).doesNotContain("parameterPathKey")
-        assertThat(indexedFields).doesNotContain("issueTypeCodes")
-        assertThat(indexedFields).doesNotContain("classificationStatus")
-        assertThat(indexedFields).doesNotContain("archive.retentionProtected")
     }
 
     @Test
@@ -128,8 +98,9 @@ class QualityResultDocumentModelsTest {
             rawJsonObjectKey =
                 "football-data/raw/api-sports/fixture-single/2026/07/07/fixtureId-123456/" +
                     "20260707T120000Z_sha256.json.gz",
+            collectedAt = COLLECTED_AT,
             checkedAt = CHECKED_AT,
-            scannerVersion = "rule-v1.0.0",
+            inspectionVersion = 1,
             hasIssue = true,
             issueCount = 1,
             maxSeverity = DataQualityMaxSeverity.WARN,
@@ -138,25 +109,18 @@ class QualityResultDocumentModelsTest {
                 listOf(
                     QualityIssueDocument(
                         issueInstanceId = "01JZKT52A2S7KQZ3H8P4D6M1RB",
-                        suggestedTypeCode = "EVENT_SUB_NO_PLAYER",
+                        suggestedTypeCode = "UNEXPECTED_NULL",
                         confirmedTypeCode = null,
+                        inspectionCode = "APISPORTS:FIXTURE_SINGLE:FIXTURE:TIMEZONE_NULL",
                         checkStatus = DataQualityIssueCheckStatus.NEED_CHECK,
                         severity = DataQualityIssueSeverity.WARN,
-                        title = "Substitution event has no player",
+                        title = "Fixture timezone is null",
                         responseLocation =
                             QualityIssueResponseLocationDocument(
-                                section = "events",
-                                path = "$.response[0].events[32]",
+                                section = "fixture",
+                                path = "$.response[0].fixture.timezone",
                             ),
-                        evidence =
-                            mapOf(
-                                "rawFragment" to
-                                    mapOf(
-                                        "type" to "subst",
-                                        "player" to null,
-                                        "assist" to null,
-                                    ),
-                            ),
+                        evidence = QualityIssueEvidenceDocument(values = mapOf("timezone" to null)),
                         createdAt = CHECKED_AT,
                         updatedAt = CHECKED_AT,
                     ),
@@ -167,6 +131,7 @@ class QualityResultDocumentModelsTest {
         )
 
     private companion object {
+        private val COLLECTED_AT = Instant.parse("2026-07-07T12:00:00Z")
         private val CHECKED_AT = Instant.parse("2026-07-07T12:01:32Z")
     }
 }

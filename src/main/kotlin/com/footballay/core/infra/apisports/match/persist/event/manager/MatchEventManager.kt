@@ -5,6 +5,7 @@ import com.footballay.core.infra.apisports.match.plan.context.MatchEntityBundle
 import com.footballay.core.infra.apisports.match.plan.dto.MatchEventDto
 import com.footballay.core.infra.apisports.match.plan.dto.MatchEventPlanDto
 import com.footballay.core.infra.apisports.match.persist.event.planner.MatchEventChangeSet
+import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
 import com.footballay.core.infra.persistence.apisports.entity.live.ApiSportsMatchEvent
 import com.footballay.core.infra.persistence.apisports.repository.live.ApiSportsMatchEventRepository
 import com.footballay.core.logger
@@ -71,7 +72,7 @@ class MatchEventManager(
             )
 
             // Event 엔티티 저장 - 데이터베이스에 변경사항 적용
-            val savedEvents = persistEventChanges(eventChangeSet)
+            val savedEvents = persistEventChanges(eventChangeSet, entityBundle.fixture!!)
 
             // EntityBundle 업데이트 - sequence 순으로 정렬하여 반영
             val sortedEvents = savedEvents.sortedBy { it.sequence }
@@ -117,12 +118,17 @@ class MatchEventManager(
     }
 
     /** 변경사항을 데이터베이스에 저장합니다. (실패 시 빈 이벤트로 대체) */
-    private fun persistEventChanges(changeSet: MatchEventChangeSet): List<ApiSportsMatchEvent> {
+    private fun persistEventChanges(
+        changeSet: MatchEventChangeSet,
+        fixture: FixtureApiSports,
+    ): List<ApiSportsMatchEvent> {
         val allEvents = mutableListOf<ApiSportsMatchEvent>()
 
         try {
             // 1. 삭제 처리 - orphan 엔티티들을 먼저 삭제
             if (changeSet.toDelete.isNotEmpty()) {
+                // events는 cascade=ALL이라, 컬렉션에 남아 있으면 flush 시 삭제가 취소된다
+                fixture.events.removeAll(changeSet.toDelete)
                 matchEventRepository.deleteAll(changeSet.toDelete)
                 log.info("Deleted {} MatchEvents", changeSet.toDelete.size)
             }

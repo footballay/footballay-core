@@ -5,6 +5,7 @@ import com.footballay.core.infra.persistence.apisports.entity.PlayerApiSports
 import com.footballay.core.infra.persistence.apisports.repository.PlayerApiSportsRepository
 import com.footballay.core.infra.persistence.core.entity.TeamCore
 import com.footballay.core.infra.persistence.apisports.repository.TeamApiSportsRepository
+import com.footballay.core.infra.apisports.shared.fetch.impl.ApiSportsV3MockFetcher
 import com.footballay.core.infra.dispatcher.match.MatchDataSyncDispatcher
 import com.footballay.core.infra.facade.ApiSportsBackboneSyncFacade
 import com.footballay.core.infra.persistence.apisports.entity.FixtureApiSports
@@ -32,6 +33,9 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.whenever
 import org.springframework.transaction.annotation.Transactional
 
 /**
@@ -86,6 +90,9 @@ class MatchDataSyncIntegrationTest {
 
     @PersistenceContext
     private lateinit var em: EntityManager
+
+    @MockitoSpyBean
+    private lateinit var mockFetcher: ApiSportsV3MockFetcher
 
     companion object {
         private const val TEST_FIXTURE_API_ID = 1208397L // Man Utd vs Aston Villa
@@ -369,6 +376,52 @@ class MatchDataSyncIntegrationTest {
         assertThat(secondSyncFixture?.homeTeam?.teamStatistics?.totalShots).isEqualTo(originalHomeShots)
         verifyTeamStats(requireNotNull(secondSyncFixture))
         log.info("=== 반복 동기화 일관성 검증 완료 ===")
+    }
+
+    /**
+     * provider 응답을 스냅샷으로 따르는 계약을 facade 요청 흐름 전체에서 검증합니다.
+     * 로더의 fetch join으로 `fixture.events`가 초기화된 상태에서 삭제가 cascade로 취소되지 않아야 합니다.
+     */
+    @Test
+    @DisplayName("두 번째 동기화 응답에서 중간 이벤트가 빠지면 DB 이벤트도 응답과 동일하게 맞춰진다")
+    fun `응답에서 중간 이벤트가 빠지면 DB 이벤트도 응답과 동일해진다`() {
+        // given: 실제 응답(이벤트 17개)으로 첫 동기화
+        val original = mockFetcher.fetchFixtureSingle(TEST_FIXTURE_API_ID)
+        val originalEvents = original.response.single().events
+        assertThat(originalEvents).hasSize(17)
+
+        matchDataSyncDispatcher.syncByFixtureUid(testFixtureUid)
+        em.flush()
+        em.clear()
+        val firstSync = fixtureApiSportsRepository.findByApiId(TEST_FIXTURE_API_ID)!!
+        assertThat(firstSync.events).hasSize(17)
+        val firstPlayerCount = firstSync.homeTeam!!.players.size + firstSync.awayTeam!!.players.size
+        em.clear()
+
+        // when: 76' A. Diallo 골 하나가 빠진 응답으로 두 번째 동기화
+        val removed = originalEvents.single { it.time.elapsed == 76 && it.type == "Goal" }
+        val snapshotEvents = originalEvents.filterNot { it === removed }
+        val modified = original.copy(response = listOf(original.response.single().copy(events = snapshotEvents)))
+        doReturn(modified).whenever(mockFetcher).fetchFixtureSingle(TEST_FIXTURE_API_ID)
+
+        matchDataSyncDispatcher.syncByFixtureUid(testFixtureUid)
+        em.flush()
+        em.clear()
+
+        // then: DB 이벤트가 응답 스냅샷과 동일해야 한다
+        val secondSync = fixtureApiSportsRepository.findByApiId(TEST_FIXTURE_API_ID)!!
+        val savedEvents = secondSync.events.sortedBy { it.sequence }
+        assertThat(savedEvents).hasSize(16)
+        assertThat(savedEvents.map { it.sequence }).containsExactlyElementsOf(0 until 16)
+        assertThat(savedEvents.none { it.elapsedTime == 76 && it.eventType == "Goal" }).isTrue()
+        assertThat(savedEvents.map { listOf(it.elapsedTime, it.extraTime, it.eventType, it.detail) })
+            .containsExactlyInAnyOrderElementsOf(
+                snapshotEvents.map { listOf(it.time.elapsed, it.time.extra, it.type, it.detail) },
+            )
+
+        // 득점자는 라인업과 통계에 남아 있으므로 선수는 삭제되지 않아야 한다
+        val secondPlayerCount = secondSync.homeTeam!!.players.size + secondSync.awayTeam!!.players.size
+        assertThat(secondPlayerCount).isEqualTo(firstPlayerCount)
     }
 
     // ===== 검증 헬퍼 메서드들 =====

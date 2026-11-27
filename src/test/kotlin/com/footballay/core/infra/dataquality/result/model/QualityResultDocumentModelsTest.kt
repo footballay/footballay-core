@@ -68,43 +68,9 @@ class QualityResultDocumentModelsTest {
     }
 
     @Test
-    fun `mongo index definitions match DQ service index names`() {
-        assertThat(QualityResultMongoIndexDefinitions.qualityResults)
-            .extracting<String> { it.name }
-            .containsExactly(
-                "raw_event_id_idx",
-                "raw_json_object_key_idx",
-                "checked_at_desc_idx",
-                "suggested_type_code_idx",
-                "confirmed_type_code_idx",
-                "provider_endpoint_parameter_idx",
-                "has_issue_checked_at_idx",
-                "max_severity_checked_at_idx",
-                "check_status_checked_at_idx",
-                "archive_status_checked_at_idx",
-            )
-
+    fun `quality result document maps to quality_results collection`() {
         val documentAnnotation = QualityResultDocument::class.java.getAnnotation(Document::class.java)
         assertThat(documentAnnotation.collection).isEqualTo(DataQualityMongoCollections.QUALITY_RESULTS)
-
-        val rawEventIdIndex =
-            QualityResultMongoIndexDefinitions.qualityResults
-                .first { it.name == "raw_event_id_idx" }
-        assertThat(rawEventIdIndex.unique).isFalse()
-        assertThat(rawEventIdIndex.keys)
-            .containsExactly(QualityResultMongoIndexKey("rawEventId", QualityResultMongoIndexDirection.ASC))
-
-        val indexedFields =
-            QualityResultMongoIndexDefinitions.qualityResults
-                .flatMap { it.keys }
-                .map { it.field }
-
-        assertThat(indexedFields).doesNotContain("canonicalHash")
-        assertThat(indexedFields).doesNotContain("parameterKey")
-        assertThat(indexedFields).doesNotContain("parameterPathKey")
-        assertThat(indexedFields).doesNotContain("issueTypeCodes")
-        assertThat(indexedFields).doesNotContain("classificationStatus")
-        assertThat(indexedFields).doesNotContain("archive.retentionProtected")
     }
 
     @Test

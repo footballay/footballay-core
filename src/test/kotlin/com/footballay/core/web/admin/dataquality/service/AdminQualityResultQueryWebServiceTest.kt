@@ -10,6 +10,7 @@ import com.footballay.core.infra.dataquality.result.model.DataQualityIssueCheckS
 import com.footballay.core.infra.dataquality.result.model.DataQualityIssueSeverity
 import com.footballay.core.infra.dataquality.result.model.DataQualityMaxSeverity
 import com.footballay.core.infra.dataquality.result.model.QualityIssueDocument
+import com.footballay.core.infra.dataquality.result.model.QualityIssueEvidenceDocument
 import com.footballay.core.infra.dataquality.result.model.QualityIssueResponseLocationDocument
 import com.footballay.core.infra.dataquality.result.model.QualityResultArchiveDocument
 import com.footballay.core.infra.dataquality.result.model.QualityResultDocument
@@ -59,7 +60,7 @@ class AdminQualityResultQueryWebServiceTest {
                 hasIssue = true,
                 maxSeverity = DataQualityMaxSeverity.WARN,
                 checkStatus = DataQualityCheckStatus.NEED_CHECK,
-                suggestedTypeCode = "EVENT_SUB_NO_PLAYER",
+                suggestedTypeCode = "UNEXPECTED_NULL",
                 confirmedTypeCode = null,
                 archiveStatus = null,
                 parameterName = "fixtureId",
@@ -71,6 +72,8 @@ class AdminQualityResultQueryWebServiceTest {
         assertThat(result.totalElements).isEqualTo(1)
         assertThat(result.content.first().resultId).isEqualTo("result-1")
         assertThat(result.content.first().archiveStatus).isEqualTo(document().archive.status)
+        assertThat(result.content.first().collectedAt).isEqualTo(Instant.parse("2026-07-07T12:00:00Z"))
+        assertThat(result.content.first().inspectionVersion).isEqualTo(1)
         assertThat(conditionCaptor.firstValue.parameterName).isEqualTo("fixtureId")
         assertThat(conditionCaptor.firstValue.parameterValue).isEqualTo("1208397")
         assertThat(pageableCaptor.firstValue.pageNumber).isZero()
@@ -84,11 +87,26 @@ class AdminQualityResultQueryWebServiceTest {
         val result = service().findResult("result-1")
 
         assertThat(result.resultId).isEqualTo("result-1")
+        assertThat(result.collectedAt).isEqualTo(Instant.parse("2026-07-07T12:00:00Z"))
+        assertThat(result.checkedAt).isEqualTo(Instant.parse("2026-07-07T12:01:32Z"))
+        assertThat(result.inspectionVersion).isEqualTo(1)
         assertThat(result.issues).hasSize(1)
-        assertThat(result.issues.first().issueInstanceId).isEqualTo("issue-1")
-        assertThat(result.issues.first().responseLocation.section).isEqualTo("events")
+        val issue = result.issues.first()
+        assertThat(issue.issueInstanceId).isEqualTo("issue-1")
+        assertThat(issue.inspectionCode).isEqualTo("APISPORTS:FIXTURE_SINGLE:FIXTURE:TIMEZONE_NULL")
+        assertThat(issue.responseLocation.section).isEqualTo("fixture")
+        assertThat(issue.evidence?.values).containsExactlyEntriesOf(mapOf("timezone" to null))
         assertThat(result.archive.status).isEqualTo(document().archive.status)
         verify(qualityResultQueryFacade).findById(eq("result-1"))
+    }
+
+    @Test
+    fun `evidence가 없는 issue는 detail response에서도 evidence를 null로 둔다`() {
+        whenever(qualityResultQueryFacade.findById("result-1")).thenReturn(document(evidence = null))
+
+        val result = service().findResult("result-1")
+
+        assertThat(result.issues.first().evidence).isNull()
     }
 
     @Test
@@ -163,7 +181,7 @@ class AdminQualityResultQueryWebServiceTest {
             rawResponseDownloadUrlGenerator = rawResponseDownloadUrlGenerator,
         )
 
-    private fun document() =
+    private fun document(evidence: QualityIssueEvidenceDocument? = QualityIssueEvidenceDocument(mapOf("timezone" to null))) =
         QualityResultDocument(
             id = "result-1",
             rawEventId = "raw-event-1",
@@ -172,8 +190,9 @@ class AdminQualityResultQueryWebServiceTest {
             parameters = listOf(QualityResultParameterDocument(name = "fixtureId", value = "1208397")),
             canonicalHash = "hash",
             rawJsonObjectKey = "data-quality/raw/object.json.gz",
+            collectedAt = Instant.parse("2026-07-07T12:00:00Z"),
             checkedAt = Instant.parse("2026-07-07T12:01:32Z"),
-            scannerVersion = "test-v1",
+            inspectionVersion = 1,
             hasIssue = true,
             issueCount = 1,
             maxSeverity = DataQualityMaxSeverity.WARN,
@@ -182,17 +201,18 @@ class AdminQualityResultQueryWebServiceTest {
                 listOf(
                     QualityIssueDocument(
                         issueInstanceId = "issue-1",
-                        suggestedTypeCode = "EVENT_SUB_NO_PLAYER",
+                        suggestedTypeCode = "UNEXPECTED_NULL",
                         confirmedTypeCode = null,
+                        inspectionCode = "APISPORTS:FIXTURE_SINGLE:FIXTURE:TIMEZONE_NULL",
                         checkStatus = DataQualityIssueCheckStatus.NEED_CHECK,
                         severity = DataQualityIssueSeverity.WARN,
-                        title = "Substitution event has no player",
+                        title = "Fixture timezone is null",
                         responseLocation =
                             QualityIssueResponseLocationDocument(
-                                section = "events",
-                                path = "$.response[0].events[32]",
+                                section = "fixture",
+                                path = "$.response[0].fixture.timezone",
                             ),
-                        evidence = mapOf("rawFragment" to mapOf("type" to "subst")),
+                        evidence = evidence,
                         createdAt = Instant.parse("2026-07-07T12:01:32Z"),
                         updatedAt = Instant.parse("2026-07-07T12:01:32Z"),
                     ),

@@ -6,7 +6,8 @@ import org.springframework.data.annotation.Id
 import org.springframework.data.mongodb.core.mapping.Document
 import java.time.Instant
 
-// Data Quality 검사 결과를 저장하는 MongoDB quality_results document schema를 정의한다.
+// Data Quality Service가 저장하는 MongoDB quality_results document를 core가 읽기 위한 schema다.
+// 저장 형식의 기준은 DQ service의 QualityResultDocument이며, core는 이를 그대로 따른다.
 object DataQualityMongoCollections {
     const val QUALITY_RESULTS = "quality_results"
 }
@@ -23,8 +24,9 @@ data class QualityResultDocument(
     val parameters: List<QualityResultParameterDocument>,
     val canonicalHash: String,
     val rawJsonObjectKey: String,
+    val collectedAt: Instant,
     val checkedAt: Instant,
-    val scannerVersion: String,
+    val inspectionVersion: Int,
     val hasIssue: Boolean,
     val issueCount: Int,
     val maxSeverity: DataQualityMaxSeverity,
@@ -44,13 +46,18 @@ data class QualityIssueDocument(
     val issueInstanceId: String,
     val suggestedTypeCode: String,
     val confirmedTypeCode: String?,
+    val inspectionCode: String,
     val checkStatus: DataQualityIssueCheckStatus,
     val severity: DataQualityIssueSeverity,
     val title: String,
     val responseLocation: QualityIssueResponseLocationDocument,
-    val evidence: Map<String, Any?>,
+    val evidence: QualityIssueEvidenceDocument?,
     val createdAt: Instant,
     val updatedAt: Instant,
+)
+
+data class QualityIssueEvidenceDocument(
+    val values: Map<String, String?>,
 )
 
 data class QualityIssueResponseLocationDocument(

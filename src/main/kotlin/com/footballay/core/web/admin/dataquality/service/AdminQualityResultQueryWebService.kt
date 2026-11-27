@@ -11,6 +11,7 @@ import com.footballay.core.infra.dataquality.result.model.QualityIssueDocument
 import com.footballay.core.infra.dataquality.result.model.QualityResultArchiveDocument
 import com.footballay.core.infra.dataquality.result.model.QualityResultDocument
 import com.footballay.core.infra.dataquality.result.model.QualityResultParameterDocument
+import com.footballay.core.web.admin.dataquality.dto.AdminQualityIssueEvidenceResponse
 import com.footballay.core.web.admin.dataquality.dto.AdminQualityIssueResponse
 import com.footballay.core.web.admin.dataquality.dto.AdminQualityIssueResponseLocationResponse
 import com.footballay.core.web.admin.dataquality.dto.AdminRawJsonDownloadUrlResponse
@@ -149,8 +150,9 @@ class AdminQualityResultQueryWebService(
             provider = document.provider,
             endpointKey = document.endpointKey,
             parameters = document.parameters.map(::toParameterResponse),
+            collectedAt = document.collectedAt,
             checkedAt = document.checkedAt,
-            scannerVersion = document.scannerVersion,
+            inspectionVersion = document.inspectionVersion,
             hasIssue = document.hasIssue,
             issueCount = document.issueCount,
             maxSeverity = document.maxSeverity,
@@ -166,8 +168,9 @@ class AdminQualityResultQueryWebService(
             endpointKey = document.endpointKey,
             parameters = document.parameters.map(::toParameterResponse),
             canonicalHash = document.canonicalHash,
+            collectedAt = document.collectedAt,
             checkedAt = document.checkedAt,
-            scannerVersion = document.scannerVersion,
+            inspectionVersion = document.inspectionVersion,
             hasIssue = document.hasIssue,
             issueCount = document.issueCount,
             maxSeverity = document.maxSeverity,
@@ -189,6 +192,7 @@ class AdminQualityResultQueryWebService(
             issueInstanceId = issue.issueInstanceId,
             suggestedTypeCode = issue.suggestedTypeCode,
             confirmedTypeCode = issue.confirmedTypeCode,
+            inspectionCode = issue.inspectionCode,
             checkStatus = issue.checkStatus,
             severity = issue.severity,
             title = issue.title,
@@ -197,7 +201,7 @@ class AdminQualityResultQueryWebService(
                     section = issue.responseLocation.section,
                     path = issue.responseLocation.path,
                 ),
-            evidence = issue.evidence,
+            evidence = issue.evidence?.let { AdminQualityIssueEvidenceResponse(values = it.values) },
             createdAt = issue.createdAt,
             updatedAt = issue.updatedAt,
         )

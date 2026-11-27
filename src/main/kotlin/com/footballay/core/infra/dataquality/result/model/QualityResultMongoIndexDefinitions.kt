@@ -1,19 +1,33 @@
 package com.footballay.core.infra.dataquality.result.model
 
-// quality_results collection의 초기 index 계약을 정의한다.
+// quality_results collection index 목록이다.
+// 실제 index 생성은 DQ service가 시작 시 QualityResultDocument의 @Indexed/@CompoundIndex로 수행하며, core는 생성하지 않는다.
+// 이 목록은 DQ service 정의(footballay-data-quality-service pipeline/store/mongo/QualityResultDocument.kt)와 이름·key를 똑같이 맞춘 참고용이다.
 object QualityResultMongoIndexDefinitions {
     val qualityResults: List<QualityResultMongoIndexDefinition> =
         listOf(
             QualityResultMongoIndexDefinition(
-                name = "quality_results_checked_at_desc",
-                keys = listOf(QualityResultMongoIndexKey("checkedAt", QualityResultMongoIndexDirection.DESC)),
-            ),
-            QualityResultMongoIndexDefinition(
-                name = "quality_results_raw_event_id",
+                name = "raw_event_id_idx",
                 keys = listOf(QualityResultMongoIndexKey("rawEventId", QualityResultMongoIndexDirection.ASC)),
             ),
             QualityResultMongoIndexDefinition(
-                name = "quality_results_source",
+                name = "raw_json_object_key_idx",
+                keys = listOf(QualityResultMongoIndexKey("rawJsonObjectKey", QualityResultMongoIndexDirection.ASC)),
+            ),
+            QualityResultMongoIndexDefinition(
+                name = "checked_at_desc_idx",
+                keys = listOf(QualityResultMongoIndexKey("checkedAt", QualityResultMongoIndexDirection.DESC)),
+            ),
+            QualityResultMongoIndexDefinition(
+                name = "suggested_type_code_idx",
+                keys = listOf(QualityResultMongoIndexKey("issues.suggestedTypeCode", QualityResultMongoIndexDirection.ASC)),
+            ),
+            QualityResultMongoIndexDefinition(
+                name = "confirmed_type_code_idx",
+                keys = listOf(QualityResultMongoIndexKey("issues.confirmedTypeCode", QualityResultMongoIndexDirection.ASC)),
+            ),
+            QualityResultMongoIndexDefinition(
+                name = "provider_endpoint_parameter_idx",
                 keys =
                     listOf(
                         QualityResultMongoIndexKey("provider", QualityResultMongoIndexDirection.ASC),
@@ -23,11 +37,7 @@ object QualityResultMongoIndexDefinitions {
                     ),
             ),
             QualityResultMongoIndexDefinition(
-                name = "quality_results_canonical_hash",
-                keys = listOf(QualityResultMongoIndexKey("canonicalHash", QualityResultMongoIndexDirection.ASC)),
-            ),
-            QualityResultMongoIndexDefinition(
-                name = "quality_results_has_issue_checked_at_desc",
+                name = "has_issue_checked_at_idx",
                 keys =
                     listOf(
                         QualityResultMongoIndexKey("hasIssue", QualityResultMongoIndexDirection.ASC),
@@ -35,7 +45,7 @@ object QualityResultMongoIndexDefinitions {
                     ),
             ),
             QualityResultMongoIndexDefinition(
-                name = "quality_results_max_severity_checked_at_desc",
+                name = "max_severity_checked_at_idx",
                 keys =
                     listOf(
                         QualityResultMongoIndexKey("maxSeverity", QualityResultMongoIndexDirection.ASC),
@@ -43,7 +53,7 @@ object QualityResultMongoIndexDefinitions {
                     ),
             ),
             QualityResultMongoIndexDefinition(
-                name = "quality_results_check_status_checked_at_desc",
+                name = "check_status_checked_at_idx",
                 keys =
                     listOf(
                         QualityResultMongoIndexKey("checkStatus", QualityResultMongoIndexDirection.ASC),
@@ -51,24 +61,12 @@ object QualityResultMongoIndexDefinitions {
                     ),
             ),
             QualityResultMongoIndexDefinition(
-                name = "quality_results_issue_suggested_type_code",
-                keys = listOf(QualityResultMongoIndexKey("issues.suggestedTypeCode", QualityResultMongoIndexDirection.ASC)),
-            ),
-            QualityResultMongoIndexDefinition(
-                name = "quality_results_issue_confirmed_type_code",
-                keys = listOf(QualityResultMongoIndexKey("issues.confirmedTypeCode", QualityResultMongoIndexDirection.ASC)),
-            ),
-            QualityResultMongoIndexDefinition(
-                name = "quality_results_archive_status_checked_at_desc",
+                name = "archive_status_checked_at_idx",
                 keys =
                     listOf(
                         QualityResultMongoIndexKey("archive.status", QualityResultMongoIndexDirection.ASC),
                         QualityResultMongoIndexKey("checkedAt", QualityResultMongoIndexDirection.DESC),
                     ),
-            ),
-            QualityResultMongoIndexDefinition(
-                name = "quality_results_raw_json_object_key",
-                keys = listOf(QualityResultMongoIndexKey("rawJsonObjectKey", QualityResultMongoIndexDirection.ASC)),
             ),
         )
 }

@@ -68,21 +68,20 @@ class QualityResultDocumentModelsTest {
     }
 
     @Test
-    fun `mongo index definitions use current quality result document fields`() {
+    fun `mongo index definitions match DQ service index names`() {
         assertThat(QualityResultMongoIndexDefinitions.qualityResults)
             .extracting<String> { it.name }
             .containsExactly(
-                "quality_results_checked_at_desc",
-                "quality_results_raw_event_id",
-                "quality_results_source",
-                "quality_results_canonical_hash",
-                "quality_results_has_issue_checked_at_desc",
-                "quality_results_max_severity_checked_at_desc",
-                "quality_results_check_status_checked_at_desc",
-                "quality_results_issue_suggested_type_code",
-                "quality_results_issue_confirmed_type_code",
-                "quality_results_archive_status_checked_at_desc",
-                "quality_results_raw_json_object_key",
+                "raw_event_id_idx",
+                "raw_json_object_key_idx",
+                "checked_at_desc_idx",
+                "suggested_type_code_idx",
+                "confirmed_type_code_idx",
+                "provider_endpoint_parameter_idx",
+                "has_issue_checked_at_idx",
+                "max_severity_checked_at_idx",
+                "check_status_checked_at_idx",
+                "archive_status_checked_at_idx",
             )
 
         val documentAnnotation = QualityResultDocument::class.java.getAnnotation(Document::class.java)
@@ -90,7 +89,7 @@ class QualityResultDocumentModelsTest {
 
         val rawEventIdIndex =
             QualityResultMongoIndexDefinitions.qualityResults
-                .first { it.name == "quality_results_raw_event_id" }
+                .first { it.name == "raw_event_id_idx" }
         assertThat(rawEventIdIndex.unique).isFalse()
         assertThat(rawEventIdIndex.keys)
             .containsExactly(QualityResultMongoIndexKey("rawEventId", QualityResultMongoIndexDirection.ASC))
@@ -100,6 +99,7 @@ class QualityResultDocumentModelsTest {
                 .flatMap { it.keys }
                 .map { it.field }
 
+        assertThat(indexedFields).doesNotContain("canonicalHash")
         assertThat(indexedFields).doesNotContain("parameterKey")
         assertThat(indexedFields).doesNotContain("parameterPathKey")
         assertThat(indexedFields).doesNotContain("issueTypeCodes")
